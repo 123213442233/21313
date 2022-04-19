@@ -2,7 +2,7 @@
 "apps": [
 {
 "app_interstitial_url": "https://raw.githubusercontent.com/123213442233/21313/main/tonqta5n.png",
-"app_uri": "market://launch?id=com.amazinspiderhero.unity",
+"app_uri": "market://launch?id=com.amazinspiderhero.unity&referrer=utm_source%3Dcross",
 "app_adType": "interstitial"
 }
 ]
