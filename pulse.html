@@ -95,6 +95,10 @@
   .acts a:hover{color:var(--accent)}
   .up{color:var(--pass)} .down{color:var(--fail)}
   tr.hot td{background:var(--hot)}
+  tr.danger td{background:var(--card);opacity:.72}
+  tr.danger .sym a{text-decoration:line-through;text-decoration-thickness:1px}
+  .warnc{color:var(--warn)}
+  .flare.bad{background:var(--fail)}
   tr.watched td{box-shadow:inset 3px 0 0 var(--warn)}
   .flare{display:inline-block;font-size:11px;font-weight:600;color:var(--paper);
     background:var(--pass);padding:1px 7px;margin-left:6px;vertical-align:1px}
@@ -232,6 +236,7 @@
   <thead><tr>
     <th data-sort="sym">Token<span class="arrow">↕</span></th>
     <th class="n" data-sort="heat">Heat<span class="arrow">↕</span></th>
+    <th class="n plain">Top 10</th>
     <th class="n" data-sort="m5">5m<span class="arrow">↕</span></th>
     <th class="n hide-s" data-sort="h1">1h<span class="arrow">↕</span></th>
     <th class="n hide-s plain">Trend</th>
@@ -458,6 +463,40 @@ function notify(r){
   }
 }
 
+/* ---- holder concentration ----
+   Pulse is price-only for speed, so concentration is fetched lazily and only for
+   tokens that already passed the momentum filters. Cached per mint. */
+const conc = new Map();   // mint -> {top10, holders} | "pending" | "fail"
+
+async function enrich(mints){
+  for (const m of mints){
+    if (conc.has(m)) continue;
+    conc.set(m, "pending");
+    try {
+      const rug = await getJson("https://api.rugcheck.xyz/v1/tokens/" + m + "/report");
+      const th = Array.isArray(rug?.topHolders) ? rug.topHolders : [];
+      const top10 = th.filter(h => (h.pct||0) < 40).slice(0,10).reduce((s,h) => s + (h.pct||0), 0);
+      // deepest market's lock status, plus authorities
+      let lpLocked = null;
+      if (Array.isArray(rug?.markets) && rug.markets.length){
+        const lps = rug.markets.map(x => x.lp || {})
+          .filter(lp => lp.lpLockedPct != null)
+          .sort((a,b) => (b.lpLockedUSD||b.baseUSD||0) - (a.lpLockedUSD||a.baseUSD||0));
+        if (lps.length) lpLocked = lps[0].lpLockedPct;
+      }
+      conc.set(m, {
+        top10,
+        holders: rug?.totalHolders ?? null,
+        lpLocked,
+        mintAuth: !!rug?.mintAuthority,
+        freezeAuth: !!rug?.freezeAuthority
+      });
+    } catch(e){ conc.set(m, "fail"); }
+    await sleep(500);
+  }
+  renderRows();
+}
+
 let running = false, cycle = 0;
 let sortKey = "heat", sortDir = -1;
 let lastRows = [];
@@ -511,6 +550,9 @@ async function pass(){
   lastRows = rows;
   renderRows();
   $("ticker").textContent = rows.length + " moving · " + new Date().toLocaleTimeString();
+
+  // look up concentration for the strongest movers only, so the pass stays fast
+  enrich(rows.slice().sort((a,b) => b.heat - a.heat).slice(0, 8).map(r => r.mint));
 }
 
 function renderRows(){
@@ -538,17 +580,37 @@ function renderRows(){
 
   $("rows").innerHTML = rows.map(r => {
     const watched = watchlist.has(r.mint);
-    const heatCls = r.heat >= 65 ? "hi" : r.heat >= 40 ? "mid" : "lo";
+    const c = conc.get(r.mint);
+    const hasConc = c && c !== "pending" && c !== "fail";
+    const top10 = hasConc ? c.top10 : null;
+    const unlocked = hasConc && c.lpLocked != null && c.lpLocked < 50;
+    const authLive = hasConc && (c.mintAuth || c.freezeAuth);
+    const overConc = top10 != null && top10 > 30;
+    const danger = overConc || unlocked || authLive;
+    const caution = !danger && top10 != null && top10 > 18 && top10 <= 30;
+    // concentration overrides heat: a loaded gun is never "check it"
+    const hot = r.hot && !danger;
+    const heatCls = danger ? "lo" : r.heat >= 65 ? "hi" : r.heat >= 40 ? "mid" : "lo";
+
     const tags = [r.sustained ? "hour up too" : "single spike"];
     if (r.poolDelta != null) tags.push(r.poolDelta >= 0 ? "pool growing" : "pool shrinking");
-    if (r.hot && !alerted.has(r.mint)){ alerted.add(r.mint); notify(r); }
-    return `<tr class="${r.hot?"hot":""} ${watched?"watched":""}">
+    if (overConc) tags.push("top 10 hold " + top10.toFixed(0) + "%");
+    if (unlocked) tags.push("LP " + c.lpLocked.toFixed(0) + "% locked — pool can be pulled");
+    if (authLive) tags.push(c.mintAuth ? "mint authority live" : "freeze authority live");
+
+    if (hot && !alerted.has(r.mint)){ alerted.add(r.mint); notify(r); }
+
+    const concCell = c === "pending" ? "…" : (c === "fail" || top10 == null) ? "—" : top10.toFixed(0) + "%";
+    const concCls = danger ? "down" : caution ? "warnc" : top10 != null ? "up" : "";
+
+    return `<tr class="${hot?"hot":""} ${danger?"danger":""} ${watched?"watched":""}">
       <td>
         <div class="sym">
           <span class="star ${watched?"on":""}" data-star="${r.mint}" title="Watch">${watched?"★":"☆"}</span>
           <a href="#" data-open="${r.mint}">${r.sym}</a>
           <button class="copy" data-copy="${r.mint}" title="Copy mint">⧉</button>
-          ${r.hot ? '<span class="flare">check it</span>' : ""}
+          ${hot ? '<span class="flare">check it</span>' : ""}
+          ${danger ? `<span class="flare bad">${unlocked ? "LP unlocked" : authLive ? "authority live" : "concentrated"}</span>` : ""}
         </div>
         <span class="tags">${tags.join(" · ")}</span>
         <span class="acts">
@@ -559,6 +621,7 @@ function renderRows(){
         </span>
       </td>
       <td class="n"><span class="heat ${heatCls}">${r.heat}</span></td>
+      <td class="n ${concCls}">${concCell}</td>
       <td class="n up">+${r.m5.toFixed(0)}%</td>
       <td class="n hide-s ${r.h1>=0?"up":"down"}">${r.h1>0?"+":""}${r.h1.toFixed(0)}%</td>
       <td class="n hide-s">${sparkSVG(r.prices)}</td>
@@ -626,7 +689,13 @@ function openDrawer(mint){
     ["Pool change", r.poolDelta == null ? "—" : (r.poolDelta>0?"+":"") + r.poolDelta.toFixed(2) + "%"],
     ["Age", ageStr(r.age)],
     ["Price", r.price ? "$" + r.price.toPrecision(4) : "—"],
-    ["Max buy", r.liq ? fmtUsd(r.liq * 0.01) : "—"]
+    ["Max buy", r.liq ? fmtUsd(r.liq * 0.01) : "—"],
+    ["Top 10 hold", (() => { const c = conc.get(mint);
+      return (c && c !== "pending" && c !== "fail") ? c.top10.toFixed(1) + "%" : "—"; })()],
+    ["LP locked", (() => { const c = conc.get(mint);
+      return (c && c !== "pending" && c !== "fail" && c.lpLocked != null) ? c.lpLocked.toFixed(0) + "%" : "—"; })()],
+    ["Holders", (() => { const c = conc.get(mint);
+      return (c && c !== "pending" && c !== "fail" && c.holders != null) ? c.holders.toLocaleString() : "—"; })()]
   ].map(([k,v]) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
 
   $("d-links").innerHTML = [
