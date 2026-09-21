@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The promoted list — what's being pushed at you</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EDEFF1; --ink:#14222B; --ink-soft:#54666F; --rule:#CED5DA;
+    --card:#F7F8F9; --fail:#A33326; --warn:#9A6B10; --pass:#2C6A52; --void:#0D181E;
+    box-sizing:border-box;
+  }
+  *,*::before,*::after{box-sizing:inherit}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.55;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:0 20px 96px}
+  header{padding:56px 0 24px}
+  h1{font-size:clamp(32px,6vw,48px);line-height:1.03;font-weight:700;letter-spacing:-.025em;margin:0 0 14px}
+  .standfirst{margin:0;max-width:58ch;color:var(--ink-soft);font-size:17px}
+  nav{margin:18px 0 0;font-size:14.5px}
+  nav a{color:var(--ink);text-underline-offset:3px}
+
+  .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:30px 0 0;
+    padding:16px;border:1px solid var(--ink);background:var(--card)}
+  button{font-family:inherit;font-size:15px;font-weight:600;padding:12px 22px;
+    border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer;border-radius:0}
+  button:hover:not(:disabled){background:var(--void)}
+  button:disabled{opacity:.45;cursor:progress}
+  button:focus-visible{outline:2px solid var(--fail);outline-offset:2px}
+  .bar p{margin:0;font-size:14px;color:var(--ink-soft)}
+
+  .headline{margin:34px 0 0;padding:24px 22px;border:1px solid var(--ink);background:var(--void);color:var(--paper)}
+  .headline b{font-family:"IBM Plex Mono",monospace;font-size:clamp(38px,9vw,64px);
+    font-weight:600;line-height:1;display:block}
+  .headline p{margin:10px 0 0;font-size:16px;color:#C6D2D8;max-width:52ch}
+
+  table{width:100%;border-collapse:collapse;margin:26px 0 0;font-size:14.5px}
+  th{text-align:left;font-size:13px;font-weight:600;color:var(--ink-soft);
+    padding:0 10px 8px 0;border-bottom:1px solid var(--ink)}
+  th.n,td.n{text-align:right;padding-right:0}
+  td{padding:12px 10px 12px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+  td.n{font-family:"IBM Plex Mono",monospace;white-space:nowrap}
+  .sym{font-weight:600}
+  .sym a{color:var(--ink);text-underline-offset:2px}
+  .why{display:block;font-size:13px;color:var(--ink-soft);margin-top:3px;max-width:44ch}
+  .score{font-family:"IBM Plex Mono",monospace;font-weight:600}
+  .s-bad{color:var(--fail)} .s-mid{color:var(--warn)} .s-ok{color:var(--pass)}
+  tr.dim{opacity:.55}
+
+  .progress{margin:22px 0 0;font-family:"IBM Plex Mono",monospace;font-size:13.5px;color:var(--ink-soft)}
+  .note{margin:44px 0 0;padding-top:20px;border-top:1px solid var(--rule);
+    font-size:14px;color:var(--ink-soft);max-width:64ch}
+  .hidden{display:none}
+  @media (max-width:620px){ .hide-s{display:none} }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>The promoted list</h1>
+  <p class="standfirst">These are the Solana tokens currently paying for placement on DexScreener — the ones engineered to reach you. Each one runs through the same structural checks, so you can see what the promotion is actually selling.</p>
+  <nav><a href="./">← Back to single-token autopsy</a></nav>
+</header>
+
+<div class="bar">
+  <button id="go">Scan the list</button>
+  <p>Reads up to 20 tokens. Takes about a minute — the APIs are rate-limited, so it walks them one at a time.</p>
+</div>
+
+<div class="progress hidden" id="progress"></div>
+
+<div id="out" class="hidden">
+  <div class="headline">
+    <b id="stat">—</b>
+    <p id="statnote"></p>
+  </div>
+
+  <table>
+    <thead><tr>
+      <th>Token</th>
+      <th class="n hide-s">Age</th>
+      <th class="n">Pool</th>
+      <th class="n hide-s">Max buy</th>
+      <th class="n">Fails</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+
+<p class="note">Ranking here measures structural risk, not quality. A token at the top of this table is not a recommendation — it is only the least obviously broken thing on a list of paid promotions. Most new tokens lose money whether or not they pass a checklist. Nothing here is financial advice.</p>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const fmtUsd = n => n == null ? "—" : "$" + (n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toFixed(0));
+const ageStr = ms => { if (ms == null) return "—"; const h = ms/36e5;
+  return h < 1 ? Math.round(h*60)+"m" : h < 48 ? h.toFixed(0)+"h" : Math.round(h/24)+"d"; };
+
+async function getJson(url){
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+// the promoted feed: tokens paying for boosts, plus tokens with paid profiles
+async function promotedMints(){
+  const mints = [];
+  for (const url of [
+    "https://api.dexscreener.com/token-boosts/latest/v1",
+    "https://api.dexscreener.com/token-profiles/latest/v1"
+  ]){
+    try {
+      const list = await getJson(url);
+      for (const t of (Array.isArray(list) ? list : [])){
+        if (t.chainId === "solana" && t.tokenAddress && !mints.includes(t.tokenAddress)){
+          mints.push(t.tokenAddress);
+        }
+      }
+    } catch(e){ /* try the next source */ }
+  }
+  return mints.slice(0, 20);
+}
+
+// the same checks as the single-token page, reduced to a count of hard fails
+function judge(dex, rug){
+  const fails = [], liq = dex?.liquidity?.usd ?? rug?.totalMarketLiquidity ?? null;
+  const mcap = dex?.marketCap || dex?.fdv || null;
+  const age = dex?.pairCreatedAt ? Date.now() - dex.pairCreatedAt : null;
+  const ageH = age != null ? age/36e5 : null;
+  const holders = rug?.totalHolders ?? null;
+  const mature = (ageH != null && ageH > 336) && (liq != null && liq > 1e6) &&
+                 (holders == null || holders > 10000);
+
+  if (rug?.mintAuthority) fails.push("mint authority live");
+  if (rug?.freezeAuthority) fails.push("freeze authority live");
+  if (liq != null && liq < 3e4) fails.push("pool under $30K");
+  if (liq != null && mcap && (liq/mcap*100) < 5) fails.push("price mostly notional");
+  if (mcap && dex?.volume?.h24 != null && dex.volume.h24/mcap > 20) fails.push("volume is churn");
+  if (ageH != null && ageH < 1) fails.push("under an hour old");
+  if (!mature && rug?.creatorBalance != null && rug?.token?.supply &&
+      rug.creatorBalance / rug.token.supply * 100 < 0.01) fails.push("creator sold out");
+  if (Array.isArray(rug?.topHolders)){
+    const top10 = rug.topHolders.filter(h => (h.pct||0) < 40).slice(0,10)
+      .reduce((s,h) => s + (h.pct||0), 0);
+    if (top10 > (mature ? 47 : 30)) fails.push("top wallets hold " + top10.toFixed(0) + "%");
+  }
+
+  return {
+    sym: dex?.baseToken?.symbol || rug?.tokenMeta?.symbol || "?",
+    name: dex?.baseToken?.name || rug?.tokenMeta?.name || "",
+    liq, age, fails
+  };
+}
+
+async function scan(){
+  $("go").disabled = true;
+  $("out").classList.add("hidden");
+  $("progress").classList.remove("hidden");
+  $("progress").textContent = "Fetching the promoted list…";
+
+  const mints = await promotedMints();
+  if (!mints.length){
+    $("progress").textContent = "The promoted feed did not respond. Try again in a minute.";
+    $("go").disabled = false;
+    return;
+  }
+
+  const results = [];
+  for (let i = 0; i < mints.length; i++){
+    $("progress").textContent = `Checking ${i+1} of ${mints.length}…`;
+    const m = mints[i];
+    let dex = null, rug = null;
+    try {
+      const d = await getJson("https://api.dexscreener.com/latest/dex/tokens/" + m);
+      const pairs = (d.pairs || []).filter(p => p.liquidity?.usd > 0)
+        .sort((a,b) => b.liquidity.usd - a.liquidity.usd);
+      dex = pairs[0] || (d.pairs || [])[0] || null;
+    } catch(e){}
+    try { rug = await getJson("https://api.rugcheck.xyz/v1/tokens/" + m + "/report"); } catch(e){}
+    if (dex || rug) results.push({mint:m, ...judge(dex, rug)});
+    await sleep(900); // stay under the rate limits
+  }
+
+  results.sort((a,b) => a.fails.length - b.fails.length || (b.liq||0) - (a.liq||0));
+
+  const clean = results.filter(r => r.fails.length === 0).length;
+  $("stat").textContent = clean + " of " + results.length;
+  $("statnote").textContent = clean === 0
+    ? "Nothing on the promoted list clears the structural checks. That is the normal result, and it is the point of running this."
+    : "tokens cleared every structural check. Clearing them is not a reason to buy — it only means nothing obvious is broken.";
+
+  $("rows").innerHTML = results.map(r => {
+    const n = r.fails.length;
+    const cls = n === 0 ? "s-ok" : n <= 2 ? "s-mid" : "s-bad";
+    return `<tr class="${n > 3 ? "dim" : ""}">
+      <td><span class="sym"><a href="./?a=${r.mint}" title="${r.name}">${r.sym}</a></span>
+          <span class="why">${r.fails.length ? r.fails.join(" · ") : "no structural flags"}</span></td>
+      <td class="n hide-s">${ageStr(r.age)}</td>
+      <td class="n">${fmtUsd(r.liq)}</td>
+      <td class="n hide-s">${r.liq ? fmtUsd(r.liq*0.01) : "—"}</td>
+      <td class="n score ${cls}">${n}</td>
+    </tr>`;
+  }).join("");
+
+  $("progress").classList.add("hidden");
+  $("out").classList.remove("hidden");
+  $("go").disabled = false;
+  $("go").textContent = "Scan again";
+}
+
+$("go").addEventListener("click", scan);
+</script>
+</body>
+</html>
