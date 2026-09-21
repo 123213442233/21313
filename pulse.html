@@ -57,6 +57,13 @@
   tr.hot td{background:#F0F5F2}
   .flare{display:inline-block;font-size:11px;font-weight:600;color:var(--paper);
     background:var(--pass);padding:1px 7px;margin-left:8px;vertical-align:1px}
+  .acts{white-space:nowrap}
+  .acts a,.acts .copy{display:inline-block;font-size:12.5px;color:var(--ink);
+    text-decoration:underline;text-underline-offset:2px;margin-right:10px}
+  .acts .copy{border:0;background:none;padding:0;font-family:inherit;font-weight:400;
+    cursor:pointer;color:var(--ink-soft)}
+  .acts .copy:hover{color:var(--ink)}
+  .acts .copy.done{color:var(--pass);text-decoration:none}
   .empty{margin:24px 0 0;padding:18px 20px;border:1px solid var(--rule);background:var(--card);
     font-size:15px;color:var(--ink-soft);max-width:62ch}
   .note{margin:40px 0 0;padding-top:20px;border-top:1px solid var(--rule);
@@ -114,6 +121,7 @@
     <th class="n">Pool</th>
     <th class="n hide-s">Pool Δ</th>
     <th class="n hide-s">Age</th>
+    <th>Open</th>
   </tr></thead>
   <tbody id="rows"></tbody>
 </table>
@@ -273,8 +281,25 @@ async function pass(){
         <td class="n">${fmtUsd(r.liq)}</td>
         <td class="n hide-s ${r.poolDelta==null?"":r.poolDelta>=0?"up":"down"}">${r.poolDelta==null?"—":(r.poolDelta>0?"+":"")+r.poolDelta.toFixed(1)+"%"}</td>
         <td class="n hide-s">${ageStr(r.age)}</td>
+        <td class="acts">
+          <a href="./?a=${r.mint}" title="Full structural checks">checks</a>
+          <a href="https://rugcheck.xyz/tokens/${r.mint}" target="_blank" rel="noopener">rug</a>
+          <a href="./whales.html?a=${r.mint}" title="Watch top holders">whales</a>
+          <a href="https://fomo.biz/token/${r.mint}" target="_blank" rel="noopener">fomo</a>
+          <button class="copy" data-m="${r.mint}" title="Copy mint address">copy</button>
+        </td>
       </tr>`;
     }).join("");
+
+    $("rows").querySelectorAll(".copy").forEach(b => {
+      b.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(b.dataset.m);
+          b.textContent = "copied"; b.classList.add("done");
+          setTimeout(() => { b.textContent = "copy"; b.classList.remove("done"); }, 1500);
+        } catch(e){ b.textContent = "select it"; }
+      });
+    });
   }
   $("ticker").textContent = rows.length + " moving · " + new Date().toLocaleTimeString();
 }
