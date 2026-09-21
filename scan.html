@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>The promoted list — what's being pushed at you</title>
+<title>Live scan — new tokens that clear the checks</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -17,28 +17,33 @@
   body{margin:0;background:var(--paper);color:var(--ink);
     font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.55;
     -webkit-font-smoothing:antialiased}
-  .wrap{max-width:860px;margin:0 auto;padding:0 20px 96px}
-  header{padding:56px 0 24px}
-  h1{font-size:clamp(32px,6vw,48px);line-height:1.03;font-weight:700;letter-spacing:-.025em;margin:0 0 14px}
+  .wrap{max-width:880px;margin:0 auto;padding:0 20px 96px}
+  header{padding:52px 0 20px}
+  h1{font-size:clamp(32px,6vw,46px);line-height:1.03;font-weight:700;letter-spacing:-.025em;margin:0 0 12px}
   .standfirst{margin:0;max-width:58ch;color:var(--ink-soft);font-size:17px}
-  nav{margin:18px 0 0;font-size:14.5px}
+  nav{margin:16px 0 0;font-size:14.5px}
   nav a{color:var(--ink);text-underline-offset:3px}
 
-  .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:30px 0 0;
-    padding:16px;border:1px solid var(--ink);background:var(--card)}
+  .panel{margin:28px 0 0;border:1px solid var(--ink);background:var(--card)}
+  .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:18px;padding:18px}
+  .f label{display:block;font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px}
+  .f b{font-family:"IBM Plex Mono",monospace;font-size:16px;color:var(--ink);font-weight:600}
+  input[type=range]{width:100%;accent-color:var(--ink);margin-top:4px}
+  .runrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+    padding:0 18px 18px;border-top:1px solid var(--rule);padding-top:16px}
   button{font-family:inherit;font-size:15px;font-weight:600;padding:12px 22px;
     border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer;border-radius:0}
   button:hover:not(:disabled){background:var(--void)}
   button:disabled{opacity:.45;cursor:progress}
+  button.ghost{background:transparent;color:var(--ink)}
   button:focus-visible{outline:2px solid var(--fail);outline-offset:2px}
-  .bar p{margin:0;font-size:14px;color:var(--ink-soft)}
+  .runrow span{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--ink-soft)}
 
-  .headline{margin:34px 0 0;padding:24px 22px;border:1px solid var(--ink);background:var(--void);color:var(--paper)}
-  .headline b{font-family:"IBM Plex Mono",monospace;font-size:clamp(38px,9vw,64px);
-    font-weight:600;line-height:1;display:block}
-  .headline p{margin:10px 0 0;font-size:16px;color:#C6D2D8;max-width:52ch}
+  .headline{margin:26px 0 0;padding:22px;border:1px solid var(--ink);background:var(--void);color:var(--paper)}
+  .headline b{font-family:"IBM Plex Mono",monospace;font-size:clamp(34px,8vw,54px);font-weight:600;line-height:1;display:block}
+  .headline p{margin:9px 0 0;font-size:15.5px;color:#C6D2D8;max-width:54ch}
 
-  table{width:100%;border-collapse:collapse;margin:26px 0 0;font-size:14.5px}
+  table{width:100%;border-collapse:collapse;margin:24px 0 0;font-size:14.5px}
   th{text-align:left;font-size:13px;font-weight:600;color:var(--ink-soft);
     padding:0 10px 8px 0;border-bottom:1px solid var(--ink)}
   th.n,td.n{text-align:right;padding-right:0}
@@ -46,13 +51,13 @@
   td.n{font-family:"IBM Plex Mono",monospace;white-space:nowrap}
   .sym{font-weight:600}
   .sym a{color:var(--ink);text-underline-offset:2px}
-  .why{display:block;font-size:13px;color:var(--ink-soft);margin-top:3px;max-width:44ch}
-  .score{font-family:"IBM Plex Mono",monospace;font-weight:600}
-  .s-bad{color:var(--fail)} .s-mid{color:var(--warn)} .s-ok{color:var(--pass)}
-  tr.dim{opacity:.55}
-
-  .progress{margin:22px 0 0;font-family:"IBM Plex Mono",monospace;font-size:13.5px;color:var(--ink-soft)}
-  .note{margin:44px 0 0;padding-top:20px;border-top:1px solid var(--rule);
+  .why{display:block;font-size:13px;color:var(--ink-soft);margin-top:3px;max-width:46ch}
+  .fresh{display:inline-block;font-size:11px;font-weight:600;color:var(--paper);
+    background:var(--pass);padding:1px 7px;margin-left:8px;vertical-align:1px}
+  .s-ok{color:var(--pass)} .s-mid{color:var(--warn)} .s-bad{color:var(--fail)}
+  .empty{margin:24px 0 0;padding:20px 22px;border:1px solid var(--rule);background:var(--card);
+    font-size:15px;color:var(--ink-soft);max-width:62ch}
+  .note{margin:42px 0 0;padding-top:20px;border-top:1px solid var(--rule);
     font-size:14px;color:var(--ink-soft);max-width:64ch}
   .hidden{display:none}
   @media (max-width:620px){ .hide-s{display:none} }
@@ -63,37 +68,55 @@
 <div class="wrap">
 
 <header>
-  <h1>The promoted list</h1>
-  <p class="standfirst">These are the Solana tokens currently paying for placement on DexScreener — the ones engineered to reach you. Each one runs through the same structural checks, so you can see what the promotion is actually selling.</p>
-  <nav><a href="./">← Back to single-token autopsy</a></nav>
+  <h1>Live scan</h1>
+  <p class="standfirst">Watches the tokens being pushed on Solana, runs every structural check, and shows only the ones that pass your floor. Refreshes on its own so you can leave it open.</p>
+  <nav><a href="./">← Single-token autopsy</a></nav>
 </header>
 
-<div class="bar">
-  <button id="go">Scan the list</button>
-  <p>Reads up to 20 tokens. Takes about a minute — the APIs are rate-limited, so it walks them one at a time.</p>
-</div>
-
-<div class="progress hidden" id="progress"></div>
-
-<div id="out" class="hidden">
-  <div class="headline">
-    <b id="stat">—</b>
-    <p id="statnote"></p>
+<div class="panel">
+  <div class="filters">
+    <div class="f">
+      <label for="pool">Minimum pool</label>
+      <b id="poolv">$30K</b>
+      <input type="range" id="pool" min="0" max="12" value="3" step="1">
+    </div>
+    <div class="f">
+      <label for="age">Maximum age</label>
+      <b id="agev">24h</b>
+      <input type="range" id="age" min="0" max="7" value="4" step="1">
+    </div>
+    <div class="f">
+      <label for="fails">Allowed failures</label>
+      <b id="failsv">none</b>
+      <input type="range" id="fails" min="0" max="3" value="0" step="1">
+    </div>
   </div>
-
-  <table>
-    <thead><tr>
-      <th>Token</th>
-      <th class="n hide-s">Age</th>
-      <th class="n">Pool</th>
-      <th class="n hide-s">Max buy</th>
-      <th class="n">Fails</th>
-    </tr></thead>
-    <tbody id="rows"></tbody>
-  </table>
+  <div class="runrow">
+    <button id="go">Start scanning</button>
+    <button id="stop" class="ghost hidden">Stop</button>
+    <span id="ticker">idle</span>
+  </div>
 </div>
 
-<p class="note">Ranking here measures structural risk, not quality. A token at the top of this table is not a recommendation — it is only the least obviously broken thing on a list of paid promotions. Most new tokens lose money whether or not they pass a checklist. Nothing here is financial advice.</p>
+<div class="headline hidden" id="head">
+  <b id="stat">—</b>
+  <p id="statnote"></p>
+</div>
+
+<div id="empty" class="empty hidden"></div>
+
+<table id="tbl" class="hidden">
+  <thead><tr>
+    <th>Token</th>
+    <th class="n hide-s">Age</th>
+    <th class="n">Pool</th>
+    <th class="n hide-s">Max buy</th>
+    <th class="n">24h</th>
+  </tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<p class="note">Passing these filters means a token is not obviously broken. It is not a signal that the price will rise, and nothing here can tell you that. Deep liquidity on a very new token means someone funded it deliberately — read that as intent, not safety. Position size and your exit plan still decide the outcome. Nothing here is financial advice.</p>
 
 </div>
 
@@ -104,18 +127,38 @@ const fmtUsd = n => n == null ? "—" : "$" + (n >= 1e6 ? (n/1e6).toFixed(1)+"M"
 const ageStr = ms => { if (ms == null) return "—"; const h = ms/36e5;
   return h < 1 ? Math.round(h*60)+"m" : h < 48 ? h.toFixed(0)+"h" : Math.round(h/24)+"d"; };
 
+const POOLS = [0, 5e3, 15e3, 30e3, 50e3, 75e3, 1e5, 15e4, 25e4, 5e5, 75e4, 1e6, 2e6];
+const AGES  = [0.25, 1, 3, 6, 24, 72, 168, 1e5];
+const AGE_LABEL = ["15m","1h","3h","6h","24h","3d","7d","any"];
+
+function readFilters(){
+  return {
+    minPool: POOLS[+$("pool").value],
+    maxAgeH: AGES[+$("age").value],
+    maxFails: +$("fails").value
+  };
+}
+function paintFilters(){
+  const f = readFilters();
+  $("poolv").textContent = f.minPool === 0 ? "any" : fmtUsd(f.minPool);
+  $("agev").textContent = AGE_LABEL[+$("age").value];
+  $("failsv").textContent = f.maxFails === 0 ? "none" : "up to " + f.maxFails;
+}
+["pool","age","fails"].forEach(id => $(id).addEventListener("input", paintFilters));
+paintFilters();
+
 async function getJson(url){
   const r = await fetch(url);
   if (!r.ok) throw new Error(r.status);
   return r.json();
 }
 
-// the promoted feed: tokens paying for boosts, plus tokens with paid profiles
-async function promotedMints(){
+async function candidateMints(){
   const mints = [];
   for (const url of [
     "https://api.dexscreener.com/token-boosts/latest/v1",
-    "https://api.dexscreener.com/token-profiles/latest/v1"
+    "https://api.dexscreener.com/token-profiles/latest/v1",
+    "https://api.dexscreener.com/token-boosts/top/v1"
   ]){
     try {
       const list = await getJson(url);
@@ -124,14 +167,14 @@ async function promotedMints(){
           mints.push(t.tokenAddress);
         }
       }
-    } catch(e){ /* try the next source */ }
+    } catch(e){}
   }
-  return mints.slice(0, 20);
+  return mints.slice(0, 30);
 }
 
-// the same checks as the single-token page, reduced to a count of hard fails
 function judge(dex, rug){
-  const fails = [], liq = dex?.liquidity?.usd ?? rug?.totalMarketLiquidity ?? null;
+  const fails = [];
+  const liq = dex?.liquidity?.usd ?? rug?.totalMarketLiquidity ?? null;
   const mcap = dex?.marketCap || dex?.fdv || null;
   const age = dex?.pairCreatedAt ? Date.now() - dex.pairCreatedAt : null;
   const ageH = age != null ? age/36e5 : null;
@@ -141,82 +184,111 @@ function judge(dex, rug){
 
   if (rug?.mintAuthority) fails.push("mint authority live");
   if (rug?.freezeAuthority) fails.push("freeze authority live");
-  if (liq != null && liq < 3e4) fails.push("pool under $30K");
   if (liq != null && mcap && (liq/mcap*100) < 5) fails.push("price mostly notional");
   if (mcap && dex?.volume?.h24 != null && dex.volume.h24/mcap > 20) fails.push("volume is churn");
-  if (ageH != null && ageH < 1) fails.push("under an hour old");
   if (!mature && rug?.creatorBalance != null && rug?.token?.supply &&
       rug.creatorBalance / rug.token.supply * 100 < 0.01) fails.push("creator sold out");
   if (Array.isArray(rug?.topHolders)){
     const top10 = rug.topHolders.filter(h => (h.pct||0) < 40).slice(0,10)
       .reduce((s,h) => s + (h.pct||0), 0);
-    if (top10 > (mature ? 47 : 30)) fails.push("top wallets hold " + top10.toFixed(0) + "%");
+    if (top10 > (mature ? 47 : 30)) fails.push("top wallets " + top10.toFixed(0) + "%");
   }
 
   return {
     sym: dex?.baseToken?.symbol || rug?.tokenMeta?.symbol || "?",
-    name: dex?.baseToken?.name || rug?.tokenMeta?.name || "",
-    liq, age, fails
+    name: dex?.baseToken?.name || "",
+    liq, age, ageH, fails,
+    ch24: dex?.priceChange?.h24 ?? null
   };
 }
 
-async function scan(){
-  $("go").disabled = true;
-  $("out").classList.add("hidden");
-  $("progress").classList.remove("hidden");
-  $("progress").textContent = "Fetching the promoted list…";
+let running = false, seen = new Set(), cycle = 0;
 
-  const mints = await promotedMints();
-  if (!mints.length){
-    $("progress").textContent = "The promoted feed did not respond. Try again in a minute.";
-    $("go").disabled = false;
-    return;
-  }
+async function pass(){
+  const f = readFilters();
+  const mints = await candidateMints();
+  if (!mints.length){ $("ticker").textContent = "feed did not respond — retrying next cycle"; return; }
 
-  const results = [];
-  for (let i = 0; i < mints.length; i++){
-    $("progress").textContent = `Checking ${i+1} of ${mints.length}…`;
-    const m = mints[i];
+  const kept = [];
+  let checked = 0;
+  for (const m of mints){
+    if (!running) return;
+    checked++;
+    $("ticker").textContent = `checking ${checked} of ${mints.length}…`;
     let dex = null, rug = null;
     try {
       const d = await getJson("https://api.dexscreener.com/latest/dex/tokens/" + m);
       const pairs = (d.pairs || []).filter(p => p.liquidity?.usd > 0)
         .sort((a,b) => b.liquidity.usd - a.liquidity.usd);
-      dex = pairs[0] || (d.pairs || [])[0] || null;
+      dex = pairs[0] || null;
     } catch(e){}
+    if (!dex) { await sleep(400); continue; }
+
+    // cheap filters first, so we only spend a RugCheck call on plausible tokens
+    const liq = dex.liquidity?.usd ?? 0;
+    const ageH = dex.pairCreatedAt ? (Date.now() - dex.pairCreatedAt)/36e5 : null;
+    if (liq < f.minPool || (ageH != null && ageH > f.maxAgeH)) { await sleep(400); continue; }
+
     try { rug = await getJson("https://api.rugcheck.xyz/v1/tokens/" + m + "/report"); } catch(e){}
-    if (dex || rug) results.push({mint:m, ...judge(dex, rug)});
-    await sleep(900); // stay under the rate limits
+    const r = judge(dex, rug);
+    if (r.fails.length <= f.maxFails) kept.push({mint:m, ...r});
+    await sleep(700);
   }
 
-  results.sort((a,b) => a.fails.length - b.fails.length || (b.liq||0) - (a.liq||0));
+  kept.sort((a,b) => a.fails.length - b.fails.length || (b.liq||0) - (a.liq||0));
+  cycle++;
 
-  const clean = results.filter(r => r.fails.length === 0).length;
-  $("stat").textContent = clean + " of " + results.length;
-  $("statnote").textContent = clean === 0
-    ? "Nothing on the promoted list clears the structural checks. That is the normal result, and it is the point of running this."
-    : "tokens cleared every structural check. Clearing them is not a reason to buy — it only means nothing obvious is broken.";
+  $("head").classList.remove("hidden");
+  $("stat").textContent = kept.length + " of " + mints.length;
+  $("statnote").textContent = kept.length === 0
+    ? "Nothing on the feed meets your floor right now. That is the usual answer, and it is worth trusting."
+    : "tokens clear your filters. Clearing them means nothing obvious is broken — not that the price will rise.";
 
-  $("rows").innerHTML = results.map(r => {
-    const n = r.fails.length;
-    const cls = n === 0 ? "s-ok" : n <= 2 ? "s-mid" : "s-bad";
-    return `<tr class="${n > 3 ? "dim" : ""}">
-      <td><span class="sym"><a href="./?a=${r.mint}" title="${r.name}">${r.sym}</a></span>
-          <span class="why">${r.fails.length ? r.fails.join(" · ") : "no structural flags"}</span></td>
-      <td class="n hide-s">${ageStr(r.age)}</td>
-      <td class="n">${fmtUsd(r.liq)}</td>
-      <td class="n hide-s">${r.liq ? fmtUsd(r.liq*0.01) : "—"}</td>
-      <td class="n score ${cls}">${n}</td>
-    </tr>`;
-  }).join("");
-
-  $("progress").classList.add("hidden");
-  $("out").classList.remove("hidden");
-  $("go").disabled = false;
-  $("go").textContent = "Scan again";
+  if (!kept.length){
+    $("tbl").classList.add("hidden");
+    $("empty").classList.remove("hidden");
+    $("empty").textContent = "No matches. Deep liquidity takes time to build, so a high pool floor and a short age window rarely overlap — loosen one to see more, and remember that seeing more is not the same as finding better.";
+  } else {
+    $("empty").classList.add("hidden");
+    $("tbl").classList.remove("hidden");
+    $("rows").innerHTML = kept.map(r => {
+      const isNew = cycle > 1 && !seen.has(r.mint);
+      const n = r.fails.length;
+      const cls = n === 0 ? "s-ok" : n <= 2 ? "s-mid" : "s-bad";
+      const chCls = r.ch24 == null ? "" : r.ch24 >= 0 ? "s-ok" : "s-bad";
+      return `<tr>
+        <td><span class="sym"><a href="./?a=${r.mint}" title="${r.name}">${r.sym}</a></span>${isNew ? '<span class="fresh">new</span>' : ""}
+            <span class="why ${cls}">${n ? r.fails.join(" · ") : "no structural flags"}</span></td>
+        <td class="n hide-s">${ageStr(r.age)}</td>
+        <td class="n">${fmtUsd(r.liq)}</td>
+        <td class="n hide-s">${r.liq ? fmtUsd(r.liq*0.01) : "—"}</td>
+        <td class="n ${chCls}">${r.ch24 == null ? "—" : (r.ch24>0?"+":"") + r.ch24.toFixed(0) + "%"}</td>
+      </tr>`;
+    }).join("");
+  }
+  kept.forEach(r => seen.add(r.mint));
+  $("ticker").textContent = "updated " + new Date().toLocaleTimeString() + " · next in 2 min";
 }
 
-$("go").addEventListener("click", scan);
+async function loop(){
+  while (running){
+    await pass();
+    for (let i = 0; i < 120 && running; i++) await sleep(1000);
+  }
+}
+
+$("go").addEventListener("click", () => {
+  running = true; cycle = 0; seen = new Set();
+  $("go").disabled = true;
+  $("stop").classList.remove("hidden");
+  loop();
+});
+$("stop").addEventListener("click", () => {
+  running = false;
+  $("go").disabled = false;
+  $("stop").classList.add("hidden");
+  $("ticker").textContent = "stopped";
+});
 </script>
 </body>
 </html>
