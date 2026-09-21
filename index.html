@@ -310,15 +310,19 @@ function buildChecks(dex, rug){
     add("skip","Mint & freeze authority","unavailable","RugCheck did not respond. Check manually before doing anything else.");
   }
 
-  // 2. LP locked
+  // 2. LP locked — read the DEEPEST market, not whichever came back first
   if (rug && Array.isArray(rug.markets) && rug.markets.length){
-    const lp = rug.markets[0].lp || {};
-    const locked = lp.lpLockedPct;
-    if (locked != null){
+    const withLp = rug.markets
+      .map(m => ({lp: m.lp || {}, liq: (m.lp && (m.lp.lpLockedUSD || m.lp.baseUSD)) || 0}))
+      .filter(m => m.lp.lpLockedPct != null)
+      .sort((a,b) => b.liq - a.liq);
+    if (withLp.length){
+      const locked = withLp[0].lp.lpLockedPct;
+      const many = rug.markets.length > 1 ? ` Across ${rug.markets.length} pools — this reads the deepest one; check the others on RugCheck.` : "";
       add(locked >= 95 ? "pass" : locked >= 50 ? "warn" : "fail", "Liquidity locked or burned",
           pct(locked),
-          locked >= 95 ? "The pool cannot be pulled out from under the price."
-                       : "Part of the pool is free to withdraw at any moment.");
+          (locked >= 95 ? "The pool cannot be pulled out from under the price."
+                        : "Part of the pool is free to withdraw at any moment.") + many);
     }
   }
 
@@ -337,12 +341,14 @@ function buildChecks(dex, rug){
 
   // 4. liquidity vs market cap
   const mcap = dex?.marketCap || dex?.fdv || null;
+  const capIsFdv = !dex?.marketCap && !!dex?.fdv;
   if (liq != null && mcap){
     const ratio = liq / mcap * 100;
     add(ratio >= 10 ? "pass" : ratio >= 5 ? "warn" : "fail", "Pool vs market cap",
         pct(ratio),
         ratio >= 10 ? "The valuation is backed by real depth."
-                    : "The price on screen is mostly notional — nobody can sell into it at that number.");
+                    : "The price on screen is mostly notional — nobody can sell into it at that number."
+        + (capIsFdv ? " Measured against fully diluted value, which can overstate the gap if supply is still vesting." : ""));
   } else {
     add("skip", "Pool vs market cap", "unknown",
         "Cannot compare depth to valuation without both numbers.");
