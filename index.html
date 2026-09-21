@@ -132,6 +132,13 @@
     font-size:16px;font-weight:600;color:var(--fail)}
   .alert span{display:block;font-weight:400;font-size:14.5px;color:var(--ink);margin-top:6px}
 
+  /* ---------- link verification ---------- */
+  .verify{margin:22px 0 0;padding:16px 18px;border-left:3px solid var(--ink-soft);
+    background:var(--card);font-size:15px;font-weight:600}
+  .verify span{display:block;font-weight:400;font-size:14px;color:var(--ink-soft);margin-top:5px;max-width:58ch}
+  .verify.ok{border-left-color:var(--pass);color:var(--pass)}
+  .verify.warn{border-left-color:var(--fail);color:var(--fail)}
+
   /* ---------- chart ---------- */
   .moves{display:flex;gap:1px;margin:30px 0 0;background:var(--rule);border:1px solid var(--rule)}
   .move{flex:1;background:var(--card);padding:12px 10px;min-width:0}
@@ -219,6 +226,7 @@
   </div>
 
   <div class="checks" id="checks"></div>
+  <div id="verify" class="verify hidden"></div>
 
   <div id="chartblock" class="hidden">
     <div class="moves" id="moves"></div>
@@ -445,7 +453,62 @@ function buildChecks(dex, rug){
                   : "Trade count is in proportion to the token's size.");
   }
 
+  // 10. public presence
+  const info = dex?.info || {};
+  const socials = [
+    ...(info.websites || []).map(w => ({kind:"website", url:w.url})),
+    ...(info.socials || []).map(s => ({kind:(s.type||s.platform||"link"), url:s.url}))
+  ].filter(s => s.url);
+  if (dex){
+    const kinds = [...new Set(socials.map(s => s.kind.toLowerCase()))];
+    const hasX = kinds.some(k => /twitter|^x$/.test(k));
+    if (!socials.length){
+      add("warn", "Public presence", "none",
+          "No website, X or Telegram listed. A token being promoted with nowhere to point is a shell.");
+    } else {
+      add("pass", "Public presence", kinds.join(", "),
+          (hasX ? "" : "No X account listed. ") +
+          "Links exist — open them below. A site registered days ago, or an X account with a renamed handle and few real replies, is the tell that matters.");
+    }
+    if (socials.length) window.__socials = socials; else window.__socials = null;
+  }
+
   return {checks:c, age, liq, mature};
+}
+
+/* ---- link verification ----
+   A scam token can link to someone else's website. It cannot make that website
+   publish its own mint address. So we fetch the page and look for the mint. */
+async function verifyLinks(mint, socials){
+  const sites = (socials || []).filter(s => s.kind === "website").slice(0, 2);
+  if (!sites.length) return;
+
+  const el = document.getElementById("verify");
+  el.classList.remove("hidden");
+  el.className = "verify";
+  el.innerHTML = "Checking whether the linked site publishes this contract address…";
+
+  for (const s of sites){
+    try {
+      const r = await fetch(PROXY + encodeURIComponent(s.url));
+      if (!r.ok) throw new Error(r.status);
+      const html = await r.text();
+      if (html.includes(mint)){
+        el.className = "verify ok";
+        el.innerHTML = "Site confirmed — it publishes this exact contract address." +
+          "<span>The link is not borrowed from another project. That rules out the impersonation case, not the token itself.</span>";
+        return;
+      }
+      // the mint is absent — could be an app that loads addresses dynamically
+      el.className = "verify warn";
+      el.innerHTML = "This contract address does not appear on the linked site." +
+        "<span>Either the site loads its content after page load, or the link belongs to a different project. Open it and search the page for the address yourself before trusting it.</span>";
+    } catch(e){
+      el.className = "verify";
+      el.innerHTML = "Could not read the linked site from the browser." +
+        "<span>Open it and check by hand that the contract address shown there matches the one you are about to buy.</span>";
+    }
+  }
 }
 
 function render(mint, dex, rug){
@@ -540,14 +603,21 @@ function render(mint, dex, rug){
     $("size-note").textContent = "No pool data — the token may not be trading on a listed DEX.";
   }
 
-  $("links").innerHTML = [
+  const base = [
     ["RugCheck","https://rugcheck.xyz/tokens/"+mint],
     ["Solscan","https://solscan.io/token/"+mint],
     ["Bubblemaps","https://app.bubblemaps.io/sol/token/"+mint],
     ["DexScreener","https://dexscreener.com/solana/"+mint]
-  ].map(([t,u]) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`).join("");
+  ];
+  const soc = (window.__socials || []).map(s => [
+    s.kind.charAt(0).toUpperCase() + s.kind.slice(1), s.url
+  ]);
+  $("links").innerHTML = base.concat(soc)
+    .map(([t,u]) => `<a href="${u}" target="_blank" rel="noopener nofollow">${t}</a>`).join("");
 
   $("out").classList.remove("hidden");
+  if (window.__socials) verifyLinks(mint, window.__socials);
+  else $("verify").classList.add("hidden");
 }
 
 async function run(){
