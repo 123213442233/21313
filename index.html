@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Token Autopsy — Solana risk checks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EDEFF1;
+    --ink:#14222B;
+    --ink-soft:#54666F;
+    --rule:#CED5DA;
+    --card:#F7F8F9;
+    --fail:#A33326;
+    --warn:#9A6B10;
+    --pass:#2C6A52;
+    --void:#0D181E;
+    box-sizing:border-box;
+  }
+  *,*::before,*::after{box-sizing:inherit}
+
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+    font-size:16px;
+    line-height:1.55;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:0 20px 96px}
+
+  /* ---------- masthead ---------- */
+  header{padding:56px 0 28px}
+  h1{
+    font-size:clamp(34px,7vw,52px);
+    line-height:1.02;
+    font-weight:700;
+    letter-spacing:-.025em;
+    margin:0 0 14px;
+  }
+  .standfirst{
+    margin:0;
+    max-width:56ch;
+    color:var(--ink-soft);
+    font-size:17px;
+  }
+
+  /* ---------- input ---------- */
+  .console{
+    margin:32px 0 0;
+    border:1px solid var(--ink);
+    background:var(--card);
+  }
+  .console label{
+    display:block;
+    padding:14px 16px 0;
+    font-size:13px;
+    font-weight:600;
+    color:var(--ink-soft);
+  }
+  .row{display:flex;flex-wrap:wrap;gap:10px;padding:8px 16px 16px}
+  input[type=text]{
+    flex:1 1 320px;
+    min-width:0;
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:14px;
+    padding:12px 13px;
+    border:1px solid var(--rule);
+    background:#fff;
+    color:var(--ink);
+    border-radius:0;
+  }
+  input[type=text]:focus{outline:2px solid var(--ink);outline-offset:1px;border-color:var(--ink)}
+  button{
+    font-family:inherit;
+    font-size:15px;
+    font-weight:600;
+    padding:12px 22px;
+    border:1px solid var(--ink);
+    background:var(--ink);
+    color:var(--paper);
+    cursor:pointer;
+    border-radius:0;
+  }
+  button:hover:not(:disabled){background:var(--void)}
+  button:disabled{opacity:.45;cursor:progress}
+  button:focus-visible{outline:2px solid var(--fail);outline-offset:2px}
+
+  .hint{padding:0 16px 14px;margin:0;font-size:13px;color:var(--ink-soft)}
+  .hint code{font-family:"IBM Plex Mono",monospace;font-size:12px;cursor:pointer;border-bottom:1px dotted var(--ink-soft)}
+
+  /* ---------- verdict ---------- */
+  .verdict{margin:40px 0 0;border:1px solid var(--ink);background:var(--void);color:var(--paper);padding:24px 22px}
+  .verdict .tag{font-size:13px;font-weight:600;color:#93A6AF;margin:0 0 6px}
+  .verdict h2{margin:0;font-size:clamp(26px,5vw,34px);letter-spacing:-.02em;line-height:1.1}
+  .verdict .flags{margin:14px 0 0;font-size:15px;color:#C6D2D8}
+  .tally{display:flex;gap:22px;margin:18px 0 0;padding-top:16px;border-top:1px solid #29393F;flex-wrap:wrap}
+  .tally div{font-family:"IBM Plex Mono",monospace;font-size:13px;color:#93A6AF}
+  .tally b{display:block;font-size:26px;font-weight:600;color:var(--paper);line-height:1.2}
+
+  /* ---------- checks ---------- */
+  .checks{margin:28px 0 0;border-top:1px solid var(--rule)}
+  .check{display:grid;grid-template-columns:22px 1fr auto;gap:0 14px;padding:16px 0;border-bottom:1px solid var(--rule);align-items:baseline}
+  .mark{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:15px}
+  .check h3{margin:0;font-size:16px;font-weight:600}
+  .check p{margin:4px 0 0;font-size:14.5px;color:var(--ink-soft);max-width:60ch}
+  .readout{
+    font-family:"IBM Plex Mono",monospace;
+    font-size:14px;
+    font-weight:500;
+    white-space:nowrap;
+    grid-column:3;
+    grid-row:1;
+  }
+  .is-fail .mark,.is-fail .readout{color:var(--fail)}
+  .is-warn .mark,.is-warn .readout{color:var(--warn)}
+  .is-pass .mark,.is-pass .readout{color:var(--pass)}
+  .is-skip .mark,.is-skip .readout{color:var(--ink-soft)}
+
+  /* ---------- sizing ---------- */
+  .sizing{margin:34px 0 0;padding:20px 22px;border:1px solid var(--rule);background:var(--card)}
+  .sizing h3{margin:0 0 8px;font-size:17px}
+  .sizing p{margin:0;font-size:14.5px;color:var(--ink-soft)}
+  .sizing .big{font-family:"IBM Plex Mono",monospace;font-size:30px;font-weight:600;color:var(--ink);display:block;margin:8px 0 4px}
+
+  .links{margin:26px 0 0;font-size:14.5px}
+  .links a{color:var(--ink);text-decoration-thickness:1px;text-underline-offset:3px;margin-right:18px;white-space:nowrap}
+
+  .note{margin:44px 0 0;padding-top:20px;border-top:1px solid var(--rule);font-size:14px;color:var(--ink-soft);max-width:64ch}
+
+  .msg{margin:32px 0 0;padding:16px 18px;border-left:3px solid var(--fail);background:var(--card);font-size:15px}
+  .hidden{display:none}
+
+  @media (max-width:560px){
+    .check{grid-template-columns:22px 1fr}
+    .readout{grid-column:2;grid-row:auto;margin-top:6px}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Token autopsy</h1>
+  <p class="standfirst">Paste a Solana mint address. This runs the structural checks that are readable before you buy — authorities, liquidity depth, holder concentration, volume sanity — and shows the numbers behind each verdict.</p>
+</header>
+
+<div class="console">
+  <label for="addr">Mint address</label>
+  <div class="row">
+    <input type="text" id="addr" placeholder="e.g. 9JA9G1...gJpump" spellcheck="false" autocomplete="off">
+    <button id="go">Run checks</button>
+  </div>
+  <p class="hint">Try a known-dead one: <code id="demo">CiV2To3hYpXXwimzRGWVcD6LJUX2ryKCMCwpRs5Ppump</code></p>
+</div>
+
+<div id="msg" class="msg hidden"></div>
+<div id="out" class="hidden">
+  <div class="verdict">
+    <p class="tag" id="v-tag">Verdict</p>
+    <h2 id="v-head">—</h2>
+    <p class="flags" id="v-flags"></p>
+    <div class="tally">
+      <div>failed<b id="t-fail">0</b></div>
+      <div>warnings<b id="t-warn">0</b></div>
+      <div>passed<b id="t-pass">0</b></div>
+      <div>age<b id="t-age">—</b></div>
+    </div>
+  </div>
+
+  <div class="checks" id="checks"></div>
+
+  <div class="sizing">
+    <h3>Position ceiling</h3>
+    <p>At 1% of the pool, this is the largest buy that can exit without eating serious slippage. It is a ceiling, not a suggestion.</p>
+    <span class="big" id="size">—</span>
+    <p id="size-note"></p>
+  </div>
+
+  <p class="links" id="links"></p>
+</div>
+
+<p class="note">Every check here reads public on-chain data through the DexScreener and RugCheck APIs. Passing them means a token is not an <em>obvious</em> trap — it does not mean the token is safe, and most new tokens go to zero without any rug at all. Nothing here is financial advice.</p>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmtUsd = n => n == null ? "—" : "$" + (n >= 1e6 ? (n/1e6).toFixed(2)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toFixed(0));
+const pct = n => n == null ? "—" : n.toFixed(1) + "%";
+
+function ageString(ms){
+  if (ms == null) return "—";
+  const h = ms / 36e5;
+  if (h < 1) return Math.round(h*60) + "m";
+  if (h < 48) return h.toFixed(1) + "h";
+  return Math.round(h/24) + "d";
+}
+
+async function getJson(url){
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(url + " → " + r.status);
+  return r.json();
+}
+
+/* ---- data sources ----
+   Each fetcher reports why it failed, so a dead result is diagnosable.
+   PROXY is used only as a fallback when the browser is blocked by CORS. */
+const PROXY = "https://corsproxy.io/?url=";
+const status = {dex:"", rug:""};
+
+async function tryUrls(urls){
+  let lastErr = "";
+  for (const u of urls){
+    try { return {data: await getJson(u), err:""}; }
+    catch(e){ lastErr = e.message.includes("Failed to fetch") ? "blocked by CORS or offline" : e.message; }
+  }
+  return {data:null, err:lastErr};
+}
+
+async function fetchDex(mint){
+  const {data, err} = await tryUrls([
+    "https://api.dexscreener.com/latest/dex/tokens/" + mint,
+    "https://api.dexscreener.com/tokens/v1/solana/" + mint,
+    PROXY + encodeURIComponent("https://api.dexscreener.com/latest/dex/tokens/" + mint)
+  ]);
+  if (!data){ status.dex = "DexScreener: " + err; return null; }
+  const pairs = Array.isArray(data) ? data : data.pairs;
+  if (!pairs || !pairs.length){
+    status.dex = "DexScreener: no trading pair yet — the token may still be on the bonding curve";
+    return null;
+  }
+  status.dex = "";
+  // deepest pool is the one that matters for exiting
+  return pairs.sort((a,b) => (b.liquidity?.usd||0) - (a.liquidity?.usd||0))[0];
+}
+
+async function fetchRug(mint){
+  const {data, err} = await tryUrls([
+    "https://api.rugcheck.xyz/v1/tokens/" + mint + "/report",
+    PROXY + encodeURIComponent("https://api.rugcheck.xyz/v1/tokens/" + mint + "/report")
+  ]);
+  if (!data){ status.rug = "RugCheck: " + err; return null; }
+  status.rug = "";
+  return data;
+}
+
+/* ---- the checks ---- */
+function buildChecks(dex, rug){
+  const c = [];
+  const add = (state, title, readout, note) => c.push({state, title, readout, note});
+
+  // 1. authorities
+  if (rug){
+    const mintAuth = rug.mintAuthority, freezeAuth = rug.freezeAuthority;
+    add(mintAuth ? "fail" : "pass", "Mint authority revoked",
+        mintAuth ? "ACTIVE" : "revoked",
+        mintAuth ? "The creator can still print new supply and dilute you to zero. Walk away."
+                 : "No new supply can be minted. On pump.fun this is automatic, so treat it as a floor, not a signal.");
+    add(freezeAuth ? "fail" : "pass", "Freeze authority revoked",
+        freezeAuth ? "ACTIVE" : "revoked",
+        freezeAuth ? "The creator can freeze your tokens in your own wallet. Walk away."
+                   : "Your tokens cannot be frozen.");
+  } else {
+    add("skip","Mint & freeze authority","unavailable","RugCheck did not respond. Check manually before doing anything else.");
+  }
+
+  // 2. LP locked
+  if (rug && Array.isArray(rug.markets) && rug.markets.length){
+    const lp = rug.markets[0].lp || {};
+    const locked = lp.lpLockedPct;
+    if (locked != null){
+      add(locked >= 95 ? "pass" : locked >= 50 ? "warn" : "fail", "Liquidity locked or burned",
+          pct(locked),
+          locked >= 95 ? "The pool cannot be pulled out from under the price."
+                       : "Part of the pool is free to withdraw at any moment.");
+    }
+  }
+
+  // 3. absolute liquidity
+  const liq = dex?.liquidity?.usd;
+  if (liq != null){
+    add(liq >= 1e5 ? "pass" : liq >= 3e4 ? "warn" : "fail", "Pool depth",
+        fmtUsd(liq),
+        liq >= 1e5 ? "Deep enough to exit a normal position calmly."
+        : liq >= 3e4 ? "Thin. Exits will cost you, and the pool can halve in minutes."
+        : "Below any workable floor — there is no real exit here at size.");
+  }
+
+  // 4. liquidity vs market cap
+  const mcap = dex?.marketCap || dex?.fdv;
+  if (liq != null && mcap){
+    const ratio = liq / mcap * 100;
+    add(ratio >= 10 ? "pass" : ratio >= 5 ? "warn" : "fail", "Pool vs market cap",
+        pct(ratio),
+        ratio >= 10 ? "The valuation is backed by real depth."
+                    : "The price on screen is mostly notional — nobody can sell into it at that number.");
+  }
+
+  // 5. volume vs market cap — the RSOLVE tell
+  const vol = dex?.volume?.h24;
+  if (vol != null && mcap){
+    const x = vol / mcap;
+    add(x > 20 ? "fail" : x > 8 ? "warn" : "pass", "Volume vs market cap",
+        x.toFixed(1) + "×",
+        x > 20 ? "Churn on this scale is not demand. Someone is being paid by the trading itself — creator fees, wash bots, or both."
+        : x > 8 ? "Turnover is high for the size. Check whether the same wallets keep reappearing in the trade feed."
+        : "Turnover is proportionate to the token's size.");
+  }
+
+  // 6. creator still holding?
+  if (rug && rug.creatorBalance != null && rug.token?.supply){
+    const share = rug.creatorBalance / rug.token.supply * 100;
+    add(share < 0.01 ? "warn" : share > 10 ? "fail" : "pass", "Creator's remaining stake",
+        share < 0.01 ? "SOLD" : pct(share),
+        share < 0.01 ? "The creator has fully exited. They took their money off the table before you put yours on."
+        : share > 10 ? "The creator still holds a stake big enough to flatten the price on its own."
+        : "The creator holds a modest amount — aligned, at least for now.");
+  }
+
+  // 7. holder concentration, excluding the pool
+  if (rug && Array.isArray(rug.topHolders) && rug.topHolders.length){
+    const real = rug.topHolders.filter(h => !h.insider && h.pct < 50);
+    const top10 = real.slice(0,10).reduce((s,h) => s + (h.pct||0), 0);
+    add(top10 > 30 ? "fail" : top10 > 18 ? "warn" : "pass", "Top 10 holders (pool excluded)",
+        pct(top10),
+        top10 > 30 ? "A handful of wallets can end this whenever they choose."
+        : top10 > 18 ? "Concentrated enough that a few coordinated sells would hurt."
+        : "Supply is spread across many wallets.");
+  }
+
+  // 8. age
+  const age = dex?.pairCreatedAt ? Date.now() - dex.pairCreatedAt : null;
+  if (age != null){
+    const h = age / 36e5;
+    add(h < 1 ? "fail" : h < 24 ? "warn" : "pass", "Age since launch",
+        ageString(age),
+        h < 1 ? "Minutes old. Nothing meaningful is knowable yet, and the insiders are still in position."
+        : h < 24 ? "Still inside the window where launch wallets are distributing."
+        : "Old enough that the launch crowd has largely cycled through.");
+  }
+
+  // 9. bot traffic
+  const t = dex?.txns?.h24;
+  if (t && (t.buys + t.sells) > 0 && mcap){
+    const total = t.buys + t.sells;
+    const perK = total / (mcap/1000);
+    add(perK > 60 ? "warn" : "pass", "Trade count vs size",
+        total.toLocaleString() + " txns",
+        perK > 60 ? "That many trades on a token this small usually means bots cycling volume rather than people buying."
+                  : "Trade count is in proportion to the token's size.");
+  }
+
+  return {checks:c, age, liq};
+}
+
+function render(mint, dex, rug){
+  const {checks, age, liq} = buildChecks(dex, rug);
+  const fails = checks.filter(c => c.state==="fail").length;
+  const warns = checks.filter(c => c.state==="warn").length;
+  const passes = checks.filter(c => c.state==="pass").length;
+
+  const name = dex?.baseToken?.name || rug?.tokenMeta?.name || "This token";
+  const sym  = dex?.baseToken?.symbol || rug?.tokenMeta?.symbol || "";
+
+  let head, tag;
+  if (fails >= 3){ head = "Walk away."; tag = name + (sym ? " · " + sym : ""); }
+  else if (fails >= 1){ head = "Hard fails present."; tag = name + (sym ? " · " + sym : ""); }
+  else if (warns >= 3){ head = "Nothing obviously broken, plenty uncomfortable."; tag = name + (sym ? " · " + sym : ""); }
+  else { head = "Clears the structural checks."; tag = name + (sym ? " · " + sym : ""); }
+
+  $("v-tag").textContent = tag;
+  $("v-head").textContent = head;
+  $("v-flags").textContent = fails === 0 && warns === 0
+    ? "No flags raised. Remember that every rug in history also passed a checklist at some point."
+    : checks.filter(c => c.state==="fail" || c.state==="warn").map(c => c.title).join(" · ");
+
+  $("t-fail").textContent = fails;
+  $("t-warn").textContent = warns;
+  $("t-pass").textContent = passes;
+  $("t-age").textContent = ageString(age);
+
+  const marks = {fail:"✕", warn:"!", pass:"✓", skip:"?"};
+  $("checks").innerHTML = checks.map(c => `
+    <div class="check is-${c.state}">
+      <span class="mark">${marks[c.state]}</span>
+      <div><h3>${c.title}</h3><p>${c.note}</p></div>
+      <span class="readout">${c.readout}</span>
+    </div>`).join("");
+
+  if (liq){
+    $("size").textContent = fmtUsd(liq * 0.01);
+    $("size-note").textContent = liq < 3e4
+      ? "On a pool this shallow, even that will move the price against you."
+      : "Above this, your own sell becomes the reason the price drops.";
+  } else {
+    $("size").textContent = "—";
+    $("size-note").textContent = "No pool data — the token may not be trading on a listed DEX.";
+  }
+
+  $("links").innerHTML = [
+    ["RugCheck","https://rugcheck.xyz/tokens/"+mint],
+    ["Solscan","https://solscan.io/token/"+mint],
+    ["Bubblemaps","https://app.bubblemaps.io/sol/token/"+mint],
+    ["DexScreener","https://dexscreener.com/solana/"+mint]
+  ].map(([t,u]) => `<a href="${u}" target="_blank" rel="noopener">${t}</a>`).join("");
+
+  $("out").classList.remove("hidden");
+}
+
+async function run(){
+  const mint = $("addr").value.trim();
+  $("msg").classList.add("hidden");
+  $("out").classList.add("hidden");
+
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)){
+    $("msg").textContent = "That is not a Solana address. Paste the mint address — 32 to 44 characters, no spaces.";
+    $("msg").classList.remove("hidden");
+    return;
+  }
+
+  $("go").disabled = true; $("go").textContent = "Reading chain…";
+  const [dex, rug] = await Promise.all([fetchDex(mint), fetchRug(mint)]);
+  $("go").disabled = false; $("go").textContent = "Run checks";
+
+  const problems = [status.dex, status.rug].filter(Boolean);
+
+  if (!dex && !rug){
+    $("msg").innerHTML = "No data came back.<br>" +
+      problems.map(p => "• " + p).join("<br>") +
+      "<br><br>Check it by hand: " +
+      `<a href="https://rugcheck.xyz/tokens/${mint}" target="_blank" rel="noopener">RugCheck</a> · ` +
+      `<a href="https://solscan.io/token/${mint}" target="_blank" rel="noopener">Solscan</a> · ` +
+      `<a href="https://pump.fun/coin/${mint}" target="_blank" rel="noopener">pump.fun</a>`;
+    $("msg").classList.remove("hidden");
+    return;
+  }
+
+  if (problems.length){
+    $("msg").innerHTML = "Partial data — some checks are missing.<br>" + problems.map(p => "• " + p).join("<br>");
+    $("msg").classList.remove("hidden");
+  }
+  render(mint, dex, rug);
+}
+
+$("go").addEventListener("click", run);
+$("addr").addEventListener("keydown", e => { if (e.key === "Enter") run(); });
+$("demo").addEventListener("click", () => { $("addr").value = $("demo").textContent; run(); });
+</script>
+</body>
+</html>
