@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pulse v2 — momentum on young tokens</title>
+<title>Pulse — momentum on young tokens</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -11,12 +11,12 @@
   :root{
     --paper:#EDEFF1; --ink:#14222B; --ink-soft:#54666F; --rule:#CED5DA;
     --card:#F7F8F9; --fail:#A33326; --warn:#9A6B10; --pass:#2C6A52;
-    --accent:#2C6A52; --hot:#F0F5F2; --void:#0D181E;
+    --accent:#2C6A52; --hot:#F0F5F2;
   }
   body.dark{
     --paper:#0D181E; --ink:#E6EDF1; --ink-soft:#8CA0AC; --rule:#22333D;
     --card:#14222B; --fail:#E07A6E; --warn:#E0B96E; --pass:#6FCB9F;
-    --accent:#6FCB9F; --hot:#16292F; --void:#EDEFF1;
+    --accent:#6FCB9F; --hot:#16292F;
   }
   *,*::before,*::after{box-sizing:border-box}
   body{margin:0;background:var(--paper);color:var(--ink);
@@ -74,6 +74,7 @@
     padding:0 10px 8px 0;border-bottom:1px solid var(--ink);cursor:pointer;
     user-select:none;white-space:nowrap}
   th:hover{color:var(--ink)}
+  th.plain{cursor:default}
   th .arrow{opacity:.4;font-size:10px;margin-left:3px}
   th.sorted .arrow{opacity:1}
   th.n,td.n{text-align:right;padding-right:0}
@@ -86,7 +87,12 @@
     border:none;background:transparent;padding:0 3px}
   tr:hover .sym .copy{opacity:1}
   .sym .copy:hover{color:var(--accent)}
+  @media (hover:none){ .sym .copy{opacity:1} }
   .tags{display:block;font-size:12.5px;color:var(--ink-soft);margin-top:3px}
+  .acts{display:block;margin-top:5px;white-space:nowrap}
+  .acts a{font-size:12.5px;color:var(--ink);text-decoration:underline;
+    text-underline-offset:2px;margin-right:10px}
+  .acts a:hover{color:var(--accent)}
   .up{color:var(--pass)} .down{color:var(--fail)}
   tr.hot td{background:var(--hot)}
   tr.watched td{box-shadow:inset 3px 0 0 var(--warn)}
@@ -101,11 +107,11 @@
   .spark.down path{stroke:var(--fail)}
   .spark.flat path{stroke:var(--ink-soft)}
 
-  .score{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:13px;
+  .heat{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:13px;
     font-weight:600;padding:1px 6px;border:1px solid var(--rule)}
-  .score.hi{color:var(--pass);border-color:var(--pass)}
-  .score.mid{color:var(--warn);border-color:var(--warn)}
-  .score.lo{color:var(--ink-soft)}
+  .heat.hi{color:var(--pass);border-color:var(--pass)}
+  .heat.mid{color:var(--warn);border-color:var(--warn)}
+  .heat.lo{color:var(--ink-soft)}
 
   .empty{margin:24px 0 0;padding:18px 20px;border:1px solid var(--rule);
     background:var(--card);font-size:15px;color:var(--ink-soft);max-width:64ch}
@@ -113,7 +119,6 @@
     font-size:14px;color:var(--ink-soft);max-width:66ch}
   .hidden{display:none!important}
 
-  /* drawer */
   .drawer{position:fixed;top:0;right:0;height:100%;width:min(420px,100%);
     background:var(--card);border-left:1px solid var(--ink);
     transform:translateX(100%);transition:transform .22s ease;z-index:50;
@@ -126,15 +131,15 @@
     border:1px solid var(--rule);color:var(--ink);width:32px;height:32px;
     display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
   .kvs{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin:18px 0 0}
-  .kvs .k{font-size:12px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
+  .kvs .k{font-size:12px;color:var(--ink-soft);letter-spacing:.04em}
   .kvs .v{font-family:"IBM Plex Mono",monospace;font-size:15px;font-weight:600;margin-top:2px}
   .drawer .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
   .drawer .actions button{font-size:13px;padding:8px 14px}
-  .drawer .actions .danger{border-color:var(--fail);color:var(--fail)}
-  .drawer .actions .danger:hover{background:var(--fail);color:var(--paper)}
   .drawer .sec{margin-top:26px;padding-top:18px;border-top:1px solid var(--rule)}
-  .drawer .sec h3{font-size:12px;text-transform:uppercase;letter-spacing:.05em;
-    color:var(--ink-soft);margin:0 0 10px;font-weight:600}
+  .drawer .sec h3{font-size:12px;letter-spacing:.05em;color:var(--ink-soft);
+    margin:0 0 10px;font-weight:600}
+  .drawer .sec a{display:inline-block;font-size:13.5px;color:var(--ink);
+    margin:0 14px 8px 0;text-underline-offset:3px}
   .minilog{font-family:"IBM Plex Mono",monospace;font-size:12px;line-height:1.7;
     color:var(--ink-soft);max-height:200px;overflow-y:auto}
   .minilog b{color:var(--ink)}
@@ -152,6 +157,7 @@
     .hide-s{display:none}
     .topbar{position:static;margin-top:16px}
   }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
@@ -165,11 +171,15 @@
   </div>
   <h1>Pulse</h1>
   <p class="standfirst">Tracks young Solana tokens every 20 seconds and flags the ones where price and pool are climbing together. Fast, because it reads price data only — run anything it surfaces through the full checks before acting.</p>
-  <nav><a href="./">Autopsy</a><a href="./scan.html">Live scan</a></nav>
+  <nav>
+    <a href="./">Autopsy</a>
+    <a href="./scan.html">Live scan</a>
+    <a href="./whales.html">Whale watch</a>
+  </nav>
 </header>
 
 <div class="warnbox">
-  This finds tokens already in motion. A climb that is real and a climb that is insiders distributing look identical while they are happening — the difference only becomes visible afterwards. Treat every row as something to investigate, never as a signal to buy.
+  This finds tokens already in motion. A climb that is real and a climb that is insiders distributing look identical while they are happening — the difference only becomes visible afterwards. Heat measures how hard something is moving, never whether it is worth buying.
 </div>
 
 <div class="panel">
@@ -207,7 +217,7 @@
   </div>
 </div>
 
-<div class="statline" id="stats">
+<div class="statline">
   <span>Tracked <b id="s-track">0</b></span>
   <span>Moving <b id="s-move">0</b></span>
   <span>Hot <b id="s-hot">0</b></span>
@@ -221,10 +231,10 @@
 <table id="tbl" class="hidden">
   <thead><tr>
     <th data-sort="sym">Token<span class="arrow">↕</span></th>
-    <th class="n" data-sort="score">Score<span class="arrow">↕</span></th>
+    <th class="n" data-sort="heat">Heat<span class="arrow">↕</span></th>
     <th class="n" data-sort="m5">5m<span class="arrow">↕</span></th>
     <th class="n hide-s" data-sort="h1">1h<span class="arrow">↕</span></th>
-    <th class="n hide-s" data-sort="trend">Trend</th>
+    <th class="n hide-s plain">Trend</th>
     <th class="n" data-sort="liq">Pool<span class="arrow">↕</span></th>
     <th class="n hide-s" data-sort="poolDelta">Pool Δ<span class="arrow">↕</span></th>
     <th class="n hide-s" data-sort="age">Age<span class="arrow">↕</span></th>
@@ -232,11 +242,10 @@
   <tbody id="rows"></tbody>
 </table>
 
-<p class="note">Momentum is not prediction. Everything here is already moving, which means you are never early — you are deciding whether to join something in progress. Size for a total loss and write your exit before you enter. Nothing here is financial advice.</p>
+<p class="note">Momentum is not prediction. Everything here is already moving, which means you are never early — you are deciding whether to join something in progress. Heat describes speed, not quality: a rug in progress scores as high as a real climb. Size for a total loss and write your exit before you enter. Nothing here is financial advice.</p>
 
 </div>
 
-<!-- Drawer -->
 <div class="backdrop" id="backdrop"></div>
 <aside class="drawer" id="drawer" aria-hidden="true">
   <button class="close" id="dclose">✕</button>
@@ -244,21 +253,23 @@
   <div class="mint" id="d-mint">—</div>
   <div class="kvs" id="d-kvs"></div>
   <div class="sec">
-    <h3>Price history (session)</h3>
+    <h3>Open elsewhere</h3>
+    <div id="d-links"></div>
+  </div>
+  <div class="sec">
+    <h3>Price history (this session)</h3>
     <div class="minilog" id="d-hist">collecting…</div>
   </div>
   <div class="actions">
     <button id="d-star">☆ Watch</button>
     <button id="d-copy">Copy mint</button>
-    <button id="d-dex" class="ghost">Open chart</button>
-    <button id="d-close" class="ghost danger">Close</button>
+    <button id="d-shut" class="ghost">Close</button>
   </div>
 </aside>
 
 <div class="toast" id="toast"></div>
 
 <script>
-/* ---------- helpers ---------- */
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const fmtUsd = n => n == null ? "—" : "$" + (n >= 1e6 ? (n/1e6).toFixed(1)+"M"
@@ -276,11 +287,9 @@ function toast(msg){
   toastTimer = setTimeout(() => t.classList.remove("on"), 1600);
 }
 
-/* ---------- config ---------- */
 const AGES  = [1, 3, 6, 12, 24, 1e5], AGE_L = ["1h","3h","6h","12h","24h","any"];
 const POOLS = [0, 5e3, 15e3, 30e3, 60e3, 1e5, 25e4];
 const MOMS  = [2, 5, 10, 20, 35, 50, 100];
-
 const PRESETS = {
   quiet:      {age:2, pool:3, mom:3},
   balanced:   {age:3, pool:2, mom:1},
@@ -288,7 +297,6 @@ const PRESETS = {
   fresh:      {age:0, pool:1, mom:1}
 };
 
-/* ---------- persistence ---------- */
 const LS = {
   get(k, d){ try { const v = localStorage.getItem("pulse."+k); return v ? JSON.parse(v) : d; } catch(e){ return d; } },
   set(k, v){ try { localStorage.setItem("pulse."+k, JSON.stringify(v)); } catch(e){} }
@@ -297,24 +305,22 @@ let watchlist = new Set(LS.get("watch", []));
 let theme = LS.get("theme", "light");
 let soundOn = LS.get("sound", true);
 
-/* ---------- sparkline history ---------- */
-const hist = new Map();   // mint -> {liq, firstSeen, prices:[...], liqs:[...], ts:[...], score}
+const hist = new Map();
 const SPARK_MAX = 24;
 
 function pushHistory(mint, price, liq){
   let h = hist.get(mint);
-  if (!h) { h = {prices:[], liqs:[], ts:[], firstSeen: Date.now(), liq: 0}; hist.set(mint, h); }
+  if (!h){ h = {prices:[], liqs:[], ts:[], firstSeen: Date.now()}; hist.set(mint, h); }
   h.prices.push(price || 0);
   h.liqs.push(liq || 0);
   h.ts.push(Date.now());
-  if (h.prices.length > SPARK_MAX) { h.prices.shift(); h.liqs.shift(); h.ts.shift(); }
-  h.liq = liq;
+  if (h.prices.length > SPARK_MAX){ h.prices.shift(); h.liqs.shift(); h.ts.shift(); }
   return h;
 }
 
-/* ---------- sparkline SVG ---------- */
 function sparkSVG(vals, w=56, h=16){
-  if (!vals || vals.length < 2) return `<svg class="spark flat" viewBox="0 0 ${w} ${h}"><path d="M0,${h/2} L${w},${h/2}"/></svg>`;
+  if (!vals || vals.length < 2)
+    return `<svg class="spark flat" viewBox="0 0 ${w} ${h}"><path d="M0,${h/2} L${w},${h/2}"/></svg>`;
   const min = Math.min(...vals), max = Math.max(...vals);
   const range = max - min || 1;
   const step = w / (vals.length - 1);
@@ -328,19 +334,18 @@ function sparkSVG(vals, w=56, h=16){
   return `<svg class="spark ${dir}" viewBox="0 0 ${w} ${h}"><path d="${d}"/></svg>`;
 }
 
-/* ---------- score ---------- */
-function score(r, f){
+/* heat = how hard it is moving. Not a rating of the token. */
+function heatOf(r){
   let s = 0;
-  s += clamp(r.m5 / 5, 0, 40);                        // momentum
-  s += clamp((r.h1 || 0) / 10, -10, 25);              // 1h confirmation
-  s += r.poolDelta != null ? clamp(r.poolDelta, -20, 20) : 0;  // pool trend
-  s += clamp(Math.log10((r.liq || 1) + 1) * 6, 0, 25);        // size
+  s += clamp(r.m5 / 5, 0, 40);
+  s += clamp((r.h1 || 0) / 10, -10, 25);
+  s += r.poolDelta != null ? clamp(r.poolDelta, -20, 20) : 0;
+  s += clamp(Math.log10((r.liq || 1) + 1) * 6, 0, 25);
   const ageH = r.age != null ? r.age/36e5 : 999;
-  s += clamp(20 - ageH, 0, 15);                       // freshness
+  s += clamp(20 - ageH, 0, 15);
   return clamp(Math.round(s), 0, 100);
 }
 
-/* ---------- filters ---------- */
 function filters(){
   return { maxAgeH: AGES[+$("age").value],
            minPool: POOLS[+$("pool").value],
@@ -360,7 +365,6 @@ function paint(){
 })();
 paint();
 
-/* ---------- presets ---------- */
 document.querySelectorAll("#presets .chip").forEach(btn => {
   btn.addEventListener("click", () => {
     const p = PRESETS[btn.dataset.preset];
@@ -372,16 +376,12 @@ document.querySelectorAll("#presets .chip").forEach(btn => {
   });
 });
 
-/* ---------- theme & sound ---------- */
 function applyTheme(){
   document.body.classList.toggle("dark", theme === "dark");
   LS.set("theme", theme);
 }
 applyTheme();
-$("theme").addEventListener("click", () => {
-  theme = theme === "dark" ? "light" : "dark";
-  applyTheme();
-});
+$("theme").addEventListener("click", () => { theme = theme === "dark" ? "light" : "dark"; applyTheme(); });
 $("sound").addEventListener("click", () => {
   soundOn = !soundOn; LS.set("sound", soundOn);
   $("sound").style.opacity = soundOn ? "1" : "0.35";
@@ -389,7 +389,6 @@ $("sound").addEventListener("click", () => {
 });
 $("sound").style.opacity = soundOn ? "1" : "0.35";
 
-/* ---------- fetch ---------- */
 async function getJson(url){
   const r = await fetch(url);
   if (!r.ok) throw new Error(r.status);
@@ -436,7 +435,6 @@ async function pairsFor(mints){
   return [...best.values()];
 }
 
-/* ---------- sound & notify ---------- */
 let audioCtx;
 function beep(){
   if (!soundOn) return;
@@ -455,23 +453,20 @@ function notify(r){
   beep();
   if (window.Notification && Notification.permission === "granted"){
     new Notification(r.sym + " is moving", {
-      body: `Score ${r.score} · 5m ${pct(r.m5)} · pool ${fmtUsd(r.liq)}`
+      body: `Heat ${r.heat} · 5m ${pct(r.m5)} · pool ${fmtUsd(r.liq)}`
     });
   }
 }
 
-/* ---------- main pass ---------- */
 let running = false, cycle = 0;
-let sortKey = "score", sortDir = -1;
+let sortKey = "heat", sortDir = -1;
 let lastRows = [];
 
 async function pass(){
   const f = filters();
   await refreshCandidates();
-  if (!candidates.length){
-    $("ticker").textContent = "feed unavailable — retrying";
-    return;
-  }
+  if (!candidates.length){ $("ticker").textContent = "feed unavailable — retrying"; return; }
+
   $("ticker").textContent = "reading…";
   const pairs = await pairsFor(candidates);
   const now = Date.now();
@@ -487,27 +482,25 @@ async function pass(){
     const price = parseFloat(p.priceUsd) || 0;
 
     const h = pushHistory(mint, price, liq);
-    const prev = h.prices.length >= 2 ? h.liqs[h.liqs.length-2] : null;
-    const poolDelta = prev != null && prev > 0 ? (liq - prev) / prev * 100 : null;
+    const prevLiq = h.liqs.length >= 2 ? h.liqs[h.liqs.length-2] : null;
+    const poolDelta = (prevLiq != null && prevLiq > 0) ? (liq - prevLiq) / prevLiq * 100 : null;
 
     if (ageH != null && ageH > f.maxAgeH) continue;
     if (liq < f.minPool) continue;
     if (m5 < f.minM5) continue;
-    if ($("watch").checked && !watchlist.has(mint)) continue;
 
     const sustained   = h1 > 0;
     const poolHolding = poolDelta == null || poolDelta > -3;
-    const score = score({m5, h1, liq, age, poolDelta}, f);
-    const hot = sustained && poolHolding && m5 >= f.minM5 * 2 && score >= 55;
+    const heat = heatOf({m5, h1, liq, age, poolDelta});
+    const hot  = sustained && poolHolding && m5 >= f.minM5 * 2 && heat >= 55;
 
     rows.push({
       mint, sym: p.baseToken.symbol || "?", liq, age, m5, h1,
-      poolDelta, sustained, poolHolding, score, hot,
+      poolDelta, sustained, poolHolding, heat, hot,
       price, prices: h.prices.slice(-SPARK_MAX)
     });
   }
 
-  // stats
   $("s-track").textContent = hist.size;
   $("s-move").textContent  = rows.length;
   $("s-hot").textContent   = rows.filter(r => r.hot).length;
@@ -515,22 +508,26 @@ async function pass(){
   $("s-cyc").textContent   = ++cycle;
   $("s-pass").textContent  = new Date().toLocaleTimeString();
 
-  if (!rows.length){
-    $("tbl").classList.add("hidden");
-    $("empty").classList.remove("hidden");
-    $("empty").textContent = "Nothing is moving that meets your filters. Lower the 5-minute threshold or widen the age to see more — a quiet screen is a normal screen.";
-    lastRows = [];
-  } else {
-    $("empty").classList.add("hidden");
-    $("tbl").classList.remove("hidden");
-    lastRows = rows;
-    renderRows(rows, f);
-  }
+  lastRows = rows;
+  renderRows();
   $("ticker").textContent = rows.length + " moving · " + new Date().toLocaleTimeString();
 }
 
-function renderRows(rows, f){
-  // sort
+function renderRows(){
+  let rows = [...lastRows];
+  if ($("watch").checked) rows = rows.filter(r => watchlist.has(r.mint));
+
+  if (!rows.length){
+    $("tbl").classList.add("hidden");
+    $("empty").classList.remove("hidden");
+    $("empty").textContent = ($("watch").checked && watchlist.size)
+      ? "None of your watched tokens are moving right now."
+      : "Nothing is moving that meets your filters. Lower the 5-minute threshold or widen the age to see more — a quiet screen is a normal screen.";
+    return;
+  }
+  $("empty").classList.add("hidden");
+  $("tbl").classList.remove("hidden");
+
   rows.sort((a,b) => {
     let av = a[sortKey], bv = b[sortKey];
     if (typeof av === "string") return av.localeCompare(bv) * sortDir;
@@ -541,12 +538,11 @@ function renderRows(rows, f){
 
   $("rows").innerHTML = rows.map(r => {
     const watched = watchlist.has(r.mint);
-    const scoreCls = r.score >= 65 ? "hi" : r.score >= 40 ? "mid" : "lo";
-    const tags = [];
-    tags.push(r.sustained ? "hour up too" : "single spike");
+    const heatCls = r.heat >= 65 ? "hi" : r.heat >= 40 ? "mid" : "lo";
+    const tags = [r.sustained ? "hour up too" : "single spike"];
     if (r.poolDelta != null) tags.push(r.poolDelta >= 0 ? "pool growing" : "pool shrinking");
     if (r.hot && !alerted.has(r.mint)){ alerted.add(r.mint); notify(r); }
-    return `<tr class="${r.hot?"hot":""} ${watched?"watched":""}" data-mint="${r.mint}">
+    return `<tr class="${r.hot?"hot":""} ${watched?"watched":""}">
       <td>
         <div class="sym">
           <span class="star ${watched?"on":""}" data-star="${r.mint}" title="Watch">${watched?"★":"☆"}</span>
@@ -555,8 +551,14 @@ function renderRows(rows, f){
           ${r.hot ? '<span class="flare">check it</span>' : ""}
         </div>
         <span class="tags">${tags.join(" · ")}</span>
+        <span class="acts">
+          <a href="./?a=${r.mint}">checks</a>
+          <a href="https://rugcheck.xyz/tokens/${r.mint}" target="_blank" rel="noopener">rug</a>
+          <a href="./whales.html?a=${r.mint}">whales</a>
+          <a href="https://fomo.family/token/${r.mint}" target="_blank" rel="noopener">fomo</a>
+        </span>
       </td>
-      <td class="n"><span class="score ${scoreCls}">${r.score}</span></td>
+      <td class="n"><span class="heat ${heatCls}">${r.heat}</span></td>
       <td class="n up">+${r.m5.toFixed(0)}%</td>
       <td class="n hide-s ${r.h1>=0?"up":"down"}">${r.h1>0?"+":""}${r.h1.toFixed(0)}%</td>
       <td class="n hide-s">${sparkSVG(r.prices)}</td>
@@ -566,7 +568,6 @@ function renderRows(rows, f){
     </tr>`;
   }).join("");
 
-  // header sort indicators
   document.querySelectorAll("th[data-sort]").forEach(th => {
     th.classList.toggle("sorted", th.dataset.sort === sortKey);
     const a = th.querySelector(".arrow");
@@ -574,13 +575,12 @@ function renderRows(rows, f){
   });
 }
 
-/* ---------- table interactions ---------- */
 document.querySelectorAll("th[data-sort]").forEach(th => {
   th.addEventListener("click", () => {
     const k = th.dataset.sort;
     if (k === sortKey) sortDir = -sortDir;
     else { sortKey = k; sortDir = (k === "sym") ? 1 : -1; }
-    if (lastRows.length) renderRows([...lastRows], filters());
+    renderRows();
   });
 });
 
@@ -593,65 +593,62 @@ $("rows").addEventListener("click", e => {
   if (open){ e.preventDefault(); openDrawer(open.dataset.open); return; }
 });
 
-/* ---------- watchlist ---------- */
 function toggleWatch(mint){
-  if (watchlist.has(mint)) watchlist.delete(mint);
-  else watchlist.add(mint);
+  if (watchlist.has(mint)) watchlist.delete(mint); else watchlist.add(mint);
   LS.set("watch", [...watchlist]);
   $("s-watch").textContent = watchlist.size;
-  if (lastRows.length) renderRows([...lastRows], filters());
+  renderRows();
   toast(watchlist.has(mint) ? "Added to watchlist" : "Removed from watchlist");
 }
-$("watch").addEventListener("change", () => {
-  if (lastRows.length) renderRows([...lastRows], filters());
-});
+$("watch").addEventListener("change", renderRows);
 
 function copyMint(mint){
-  navigator.clipboard?.writeText(mint).then(
-    () => toast("Mint copied"),
-    () => toast("Copy failed")
-  );
+  if (!navigator.clipboard) return toast("Clipboard unavailable");
+  navigator.clipboard.writeText(mint).then(() => toast("Mint copied"), () => toast("Copy failed"));
 }
 
-/* ---------- drawer ---------- */
-let drawerMint = null;
 function openDrawer(mint){
-  drawerMint = mint;
   const r = lastRows.find(x => x.mint === mint);
-  const h = hist.get(mint);
   if (!r) return;
+  const h = hist.get(mint);
+
   $("d-sym").textContent = r.sym;
   $("d-mint").textContent = mint;
   $("d-star").textContent = watchlist.has(mint) ? "★ Unwatch" : "☆ Watch";
   $("d-star").onclick = () => { toggleWatch(mint); openDrawer(mint); };
   $("d-copy").onclick = () => copyMint(mint);
-  $("d-dex").onclick = () => window.open(`https://dexscreener.com/solana/${mint}`, "_blank");
 
-  const kvs = [
-    ["Score", r.score],
+  $("d-kvs").innerHTML = [
+    ["Heat", r.heat],
     ["5m", pct(r.m5)],
-    ["1h", r.h1 != null ? pct(r.h1) : "—"],
+    ["1h", pct(r.h1 || 0)],
     ["Pool", fmtUsd(r.liq)],
-    ["Pool Δ", r.poolDelta == null ? "—" : (r.poolDelta>0?"+":"") + r.poolDelta.toFixed(2) + "%"],
+    ["Pool change", r.poolDelta == null ? "—" : (r.poolDelta>0?"+":"") + r.poolDelta.toFixed(2) + "%"],
     ["Age", ageStr(r.age)],
     ["Price", r.price ? "$" + r.price.toPrecision(4) : "—"],
-    ["First seen", h ? new Date(h.firstSeen).toLocaleTimeString() : "—"]
-  ];
-  $("d-kvs").innerHTML = kvs.map(([k,v]) =>
-    `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+    ["Max buy", r.liq ? fmtUsd(r.liq * 0.01) : "—"]
+  ].map(([k,v]) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
 
-  // price history log
+  $("d-links").innerHTML = [
+    ["Full checks", "./?a=" + mint, false],
+    ["RugCheck", "https://rugcheck.xyz/tokens/" + mint, true],
+    ["Whale watch", "./whales.html?a=" + mint, false],
+    ["FOMO", "https://fomo.family/token/" + mint, true],
+    ["DexScreener", "https://dexscreener.com/solana/" + mint, true],
+    ["Solscan", "https://solscan.io/token/" + mint, true]
+  ].map(([t,u,ext]) => `<a href="${u}"${ext ? ' target="_blank" rel="noopener"' : ""}>${t}</a>`).join("");
+
   if (h && h.prices.length){
     $("d-hist").innerHTML = h.prices.map((p, i) => {
       const t = new Date(h.ts[i]).toLocaleTimeString();
-      const l = h.liqs[i];
       const dp = i ? ((p - h.prices[i-1]) / (h.prices[i-1] || 1) * 100) : 0;
       const cls = dp > 0 ? "up" : dp < 0 ? "down" : "";
-      return `${t} · <b class="${cls}">${p.toPrecision(4)}</b> · pool ${fmtUsd(l)}`;
+      return `${t} · <b class="${cls}">${p.toPrecision(4)}</b> · pool ${fmtUsd(h.liqs[i])}`;
     }).reverse().slice(0, 20).join("<br>");
   } else {
     $("d-hist").textContent = "collecting…";
   }
+
   $("drawer").classList.add("open");
   $("drawer").setAttribute("aria-hidden", "false");
   $("backdrop").classList.add("on");
@@ -660,20 +657,18 @@ function closeDrawer(){
   $("drawer").classList.remove("open");
   $("drawer").setAttribute("aria-hidden", "true");
   $("backdrop").classList.remove("on");
-  drawerMint = null;
 }
 $("dclose").onclick = closeDrawer;
-$("d-close").onclick = closeDrawer;
+$("d-shut").onclick = closeDrawer;
 $("backdrop").onclick = closeDrawer;
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
 
-/* ---------- export CSV ---------- */
 $("export").addEventListener("click", () => {
   if (!lastRows.length) return toast("Nothing to export");
-  const head = ["symbol","mint","score","m5","h1","pool_usd","pool_delta_pct","age_ms","price"];
+  const head = ["symbol","mint","heat","m5","h1","pool_usd","pool_delta_pct","age_ms","price"];
   const lines = [head.join(",")];
   for (const r of lastRows){
-    lines.push([r.sym, r.mint, r.score, r.m5, r.h1,
+    lines.push([r.sym, r.mint, r.heat, r.m5, r.h1,
                 Math.round(r.liq), r.poolDelta==null?"":r.poolDelta.toFixed(2),
                 r.age==null?"":Math.round(r.age), r.price].join(","));
   }
@@ -686,7 +681,6 @@ $("export").addEventListener("click", () => {
   toast("Exported " + lastRows.length + " rows");
 });
 
-/* ---------- loop ---------- */
 async function loop(){
   while (running){
     await pass();
@@ -699,9 +693,8 @@ async function loop(){
 }
 
 $("alerts").addEventListener("change", e => {
-  if (e.target.checked && window.Notification && Notification.permission === "default"){
+  if (e.target.checked && window.Notification && Notification.permission === "default")
     Notification.requestPermission();
-  }
 });
 $("go").addEventListener("click", () => {
   running = true; alerted.clear();
