@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse v2 — momentum on young tokens</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EDEFF1; --ink:#14222B; --ink-soft:#54666F; --rule:#CED5DA;
+    --card:#F7F8F9; --fail:#A33326; --warn:#9A6B10; --pass:#2C6A52;
+    --accent:#2C6A52; --hot:#F0F5F2; --void:#0D181E;
+  }
+  body.dark{
+    --paper:#0D181E; --ink:#E6EDF1; --ink-soft:#8CA0AC; --rule:#22333D;
+    --card:#14222B; --fail:#E07A6E; --warn:#E0B96E; --pass:#6FCB9F;
+    --accent:#6FCB9F; --hot:#16292F; --void:#EDEFF1;
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.55;
+    -webkit-font-smoothing:antialiased;transition:background .2s,color .2s}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 20px 90px}
+  header{padding:48px 0 18px;position:relative}
+  h1{font-size:clamp(32px,6vw,46px);line-height:1.03;font-weight:700;letter-spacing:-.025em;margin:0 0 12px}
+  .standfirst{margin:0;max-width:62ch;color:var(--ink-soft);font-size:17px}
+  nav{margin:16px 0 0;font-size:14.5px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  nav a{color:var(--ink);text-underline-offset:3px}
+
+  .topbar{position:absolute;top:44px;right:0;display:flex;gap:8px}
+  .icon-btn{background:transparent;border:1px solid var(--rule);color:var(--ink);
+    width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;font-size:16px;padding:0;transition:border-color .15s}
+  .icon-btn:hover{border-color:var(--ink)}
+
+  .warnbox{margin:24px 0 0;padding:16px 18px;border-left:3px solid var(--warn);
+    background:var(--card);font-size:14.5px;max-width:68ch}
+
+  .panel{margin:24px 0 0;border:1px solid var(--ink);background:var(--card)}
+  .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;padding:18px}
+  .f label{display:block;font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:5px}
+  .f b{font-family:"IBM Plex Mono",monospace;font-size:16px;font-weight:600}
+  input[type=range]{width:100%;accent-color:var(--accent);margin-top:4px}
+
+  .presets{display:flex;gap:8px;flex-wrap:wrap;padding:0 18px 16px;border-bottom:1px solid var(--rule)}
+  .chip{font-family:inherit;font-size:12.5px;font-weight:600;padding:5px 11px;
+    border:1px solid var(--rule);background:transparent;color:var(--ink-soft);
+    cursor:pointer;border-radius:0;transition:all .15s}
+  .chip:hover{border-color:var(--ink);color:var(--ink)}
+  .chip.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+  .runrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+    padding:16px 18px 18px;border-top:1px solid var(--rule)}
+  button{font-family:inherit;font-size:15px;font-weight:600;padding:11px 20px;
+    border:1px solid var(--ink);background:var(--ink);color:var(--paper);
+    cursor:pointer;border-radius:0;transition:opacity .15s}
+  button.ghost{background:transparent;color:var(--ink)}
+  button:disabled{opacity:.45;cursor:progress}
+  button:focus-visible{outline:2px solid var(--fail);outline-offset:2px}
+  .runrow span{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--ink-soft)}
+  .runrow label{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:600;cursor:pointer}
+  .runrow input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+  .spacer{flex:1}
+
+  .statline{display:flex;gap:20px;flex-wrap:wrap;margin:22px 0 0;
+    padding:12px 16px;border:1px solid var(--rule);background:var(--card);
+    font-family:"IBM Plex Mono",monospace;font-size:12.5px;color:var(--ink-soft)}
+  .statline b{color:var(--ink);font-weight:600}
+
+  table{width:100%;border-collapse:collapse;margin:22px 0 0;font-size:14.5px}
+  th{text-align:left;font-size:13px;font-weight:600;color:var(--ink-soft);
+    padding:0 10px 8px 0;border-bottom:1px solid var(--ink);cursor:pointer;
+    user-select:none;white-space:nowrap}
+  th:hover{color:var(--ink)}
+  th .arrow{opacity:.4;font-size:10px;margin-left:3px}
+  th.sorted .arrow{opacity:1}
+  th.n,td.n{text-align:right;padding-right:0}
+  td{padding:11px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+  td:first-child{padding-left:0}
+  td.n{font-family:"IBM Plex Mono",monospace;white-space:nowrap}
+  .sym{font-weight:600;display:flex;align-items:center;gap:6px}
+  .sym a{color:var(--ink);text-underline-offset:2px}
+  .sym .copy{opacity:0;cursor:pointer;font-size:11px;color:var(--ink-soft);
+    border:none;background:transparent;padding:0 3px}
+  tr:hover .sym .copy{opacity:1}
+  .sym .copy:hover{color:var(--accent)}
+  .tags{display:block;font-size:12.5px;color:var(--ink-soft);margin-top:3px}
+  .up{color:var(--pass)} .down{color:var(--fail)}
+  tr.hot td{background:var(--hot)}
+  tr.watched td{box-shadow:inset 3px 0 0 var(--warn)}
+  .flare{display:inline-block;font-size:11px;font-weight:600;color:var(--paper);
+    background:var(--pass);padding:1px 7px;margin-left:6px;vertical-align:1px}
+  .star{cursor:pointer;color:var(--ink-soft);font-size:14px;user-select:none;padding:0 2px}
+  .star.on{color:var(--warn)}
+
+  .spark{display:block;width:56px;height:16px}
+  .spark path{fill:none;stroke-width:1.4}
+  .spark.up path{stroke:var(--pass)}
+  .spark.down path{stroke:var(--fail)}
+  .spark.flat path{stroke:var(--ink-soft)}
+
+  .score{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:13px;
+    font-weight:600;padding:1px 6px;border:1px solid var(--rule)}
+  .score.hi{color:var(--pass);border-color:var(--pass)}
+  .score.mid{color:var(--warn);border-color:var(--warn)}
+  .score.lo{color:var(--ink-soft)}
+
+  .empty{margin:24px 0 0;padding:18px 20px;border:1px solid var(--rule);
+    background:var(--card);font-size:15px;color:var(--ink-soft);max-width:64ch}
+  .note{margin:40px 0 0;padding-top:20px;border-top:1px solid var(--rule);
+    font-size:14px;color:var(--ink-soft);max-width:66ch}
+  .hidden{display:none!important}
+
+  /* drawer */
+  .drawer{position:fixed;top:0;right:0;height:100%;width:min(420px,100%);
+    background:var(--card);border-left:1px solid var(--ink);
+    transform:translateX(100%);transition:transform .22s ease;z-index:50;
+    overflow-y:auto;padding:24px 22px 60px}
+  .drawer.open{transform:translateX(0)}
+  .drawer h2{margin:0 0 4px;font-size:22px;font-weight:700;letter-spacing:-.02em}
+  .drawer .mint{font-family:"IBM Plex Mono",monospace;font-size:11.5px;
+    color:var(--ink-soft);word-break:break-all;margin-bottom:18px}
+  .drawer .close{position:absolute;top:16px;right:16px;background:transparent;
+    border:1px solid var(--rule);color:var(--ink);width:32px;height:32px;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .kvs{display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;margin:18px 0 0}
+  .kvs .k{font-size:12px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em}
+  .kvs .v{font-family:"IBM Plex Mono",monospace;font-size:15px;font-weight:600;margin-top:2px}
+  .drawer .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:22px}
+  .drawer .actions button{font-size:13px;padding:8px 14px}
+  .drawer .actions .danger{border-color:var(--fail);color:var(--fail)}
+  .drawer .actions .danger:hover{background:var(--fail);color:var(--paper)}
+  .drawer .sec{margin-top:26px;padding-top:18px;border-top:1px solid var(--rule)}
+  .drawer .sec h3{font-size:12px;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--ink-soft);margin:0 0 10px;font-weight:600}
+  .minilog{font-family:"IBM Plex Mono",monospace;font-size:12px;line-height:1.7;
+    color:var(--ink-soft);max-height:200px;overflow-y:auto}
+  .minilog b{color:var(--ink)}
+
+  .backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);opacity:0;
+    pointer-events:none;transition:opacity .2s;z-index:40}
+  .backdrop.on{opacity:1;pointer-events:auto}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:var(--paper);padding:10px 18px;font-size:13.5px;
+    font-weight:600;opacity:0;pointer-events:none;transition:all .2s;z-index:60}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media (max-width:760px){
+    .hide-s{display:none}
+    .topbar{position:static;margin-top:16px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="topbar">
+    <button class="icon-btn" id="theme" title="Toggle dark mode">◐</button>
+    <button class="icon-btn" id="sound" title="Toggle alert sound">♪</button>
+    <button class="icon-btn" id="export" title="Export CSV">↓</button>
+  </div>
+  <h1>Pulse</h1>
+  <p class="standfirst">Tracks young Solana tokens every 20 seconds and flags the ones where price and pool are climbing together. Fast, because it reads price data only — run anything it surfaces through the full checks before acting.</p>
+  <nav><a href="./">Autopsy</a><a href="./scan.html">Live scan</a></nav>
+</header>
+
+<div class="warnbox">
+  This finds tokens already in motion. A climb that is real and a climb that is insiders distributing look identical while they are happening — the difference only becomes visible afterwards. Treat every row as something to investigate, never as a signal to buy.
+</div>
+
+<div class="panel">
+  <div class="filters">
+    <div class="f">
+      <label for="age">Maximum age</label>
+      <b id="agev">6h</b>
+      <input type="range" id="age" min="0" max="5" value="3" step="1">
+    </div>
+    <div class="f">
+      <label for="pool">Minimum pool</label>
+      <b id="poolv">$15K</b>
+      <input type="range" id="pool" min="0" max="6" value="2" step="1">
+    </div>
+    <div class="f">
+      <label for="mom">5-minute move above</label>
+      <b id="momv">+5%</b>
+      <input type="range" id="mom" min="0" max="6" value="1" step="1">
+    </div>
+  </div>
+  <div class="presets" id="presets">
+    <button class="chip" data-preset="quiet">Quiet screen</button>
+    <button class="chip" data-preset="balanced">Balanced</button>
+    <button class="chip" data-preset="aggressive">Aggressive</button>
+    <button class="chip" data-preset="fresh">Fresh only (&lt;1h)</button>
+  </div>
+  <div class="runrow">
+    <button id="go">Start pulse</button>
+    <button id="stop" class="ghost hidden">Stop</button>
+    <label><input type="checkbox" id="alerts"> Alert me</label>
+    <label><input type="checkbox" id="watch"> Watched only</label>
+    <span id="ticker">idle</span>
+    <span class="spacer"></span>
+    <span id="next">—</span>
+  </div>
+</div>
+
+<div class="statline" id="stats">
+  <span>Tracked <b id="s-track">0</b></span>
+  <span>Moving <b id="s-move">0</b></span>
+  <span>Hot <b id="s-hot">0</b></span>
+  <span>Watched <b id="s-watch">0</b></span>
+  <span>Cycle <b id="s-cyc">0</b></span>
+  <span>Last pass <b id="s-pass">—</b></span>
+</div>
+
+<div id="empty" class="empty hidden"></div>
+
+<table id="tbl" class="hidden">
+  <thead><tr>
+    <th data-sort="sym">Token<span class="arrow">↕</span></th>
+    <th class="n" data-sort="score">Score<span class="arrow">↕</span></th>
+    <th class="n" data-sort="m5">5m<span class="arrow">↕</span></th>
+    <th class="n hide-s" data-sort="h1">1h<span class="arrow">↕</span></th>
+    <th class="n hide-s" data-sort="trend">Trend</th>
+    <th class="n" data-sort="liq">Pool<span class="arrow">↕</span></th>
+    <th class="n hide-s" data-sort="poolDelta">Pool Δ<span class="arrow">↕</span></th>
+    <th class="n hide-s" data-sort="age">Age<span class="arrow">↕</span></th>
+  </tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<p class="note">Momentum is not prediction. Everything here is already moving, which means you are never early — you are deciding whether to join something in progress. Size for a total loss and write your exit before you enter. Nothing here is financial advice.</p>
+
+</div>
+
+<!-- Drawer -->
+<div class="backdrop" id="backdrop"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <button class="close" id="dclose">✕</button>
+  <h2 id="d-sym">—</h2>
+  <div class="mint" id="d-mint">—</div>
+  <div class="kvs" id="d-kvs"></div>
+  <div class="sec">
+    <h3>Price history (session)</h3>
+    <div class="minilog" id="d-hist">collecting…</div>
+  </div>
+  <div class="actions">
+    <button id="d-star">☆ Watch</button>
+    <button id="d-copy">Copy mint</button>
+    <button id="d-dex" class="ghost">Open chart</button>
+    <button id="d-close" class="ghost danger">Close</button>
+  </div>
+</aside>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const fmtUsd = n => n == null ? "—" : "$" + (n >= 1e6 ? (n/1e6).toFixed(1)+"M"
+                    : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toFixed(0));
+const ageStr = ms => { if (ms == null) return "—"; const h = ms/36e5;
+  return h < 1 ? Math.round(h*60)+"m" : h < 48 ? h.toFixed(0)+"h" : Math.round(h/24)+"d"; };
+const pct = n => (n>0?"+":"") + n.toFixed(0) + "%";
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+
+let toastTimer;
+function toast(msg){
+  const t = $("toast");
+  t.textContent = msg; t.classList.add("on");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("on"), 1600);
+}
+
+/* ---------- config ---------- */
+const AGES  = [1, 3, 6, 12, 24, 1e5], AGE_L = ["1h","3h","6h","12h","24h","any"];
+const POOLS = [0, 5e3, 15e3, 30e3, 60e3, 1e5, 25e4];
+const MOMS  = [2, 5, 10, 20, 35, 50, 100];
+
+const PRESETS = {
+  quiet:      {age:2, pool:3, mom:3},
+  balanced:   {age:3, pool:2, mom:1},
+  aggressive: {age:1, pool:1, mom:0},
+  fresh:      {age:0, pool:1, mom:1}
+};
+
+/* ---------- persistence ---------- */
+const LS = {
+  get(k, d){ try { const v = localStorage.getItem("pulse."+k); return v ? JSON.parse(v) : d; } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem("pulse."+k, JSON.stringify(v)); } catch(e){} }
+};
+let watchlist = new Set(LS.get("watch", []));
+let theme = LS.get("theme", "light");
+let soundOn = LS.get("sound", true);
+
+/* ---------- sparkline history ---------- */
+const hist = new Map();   // mint -> {liq, firstSeen, prices:[...], liqs:[...], ts:[...], score}
+const SPARK_MAX = 24;
+
+function pushHistory(mint, price, liq){
+  let h = hist.get(mint);
+  if (!h) { h = {prices:[], liqs:[], ts:[], firstSeen: Date.now(), liq: 0}; hist.set(mint, h); }
+  h.prices.push(price || 0);
+  h.liqs.push(liq || 0);
+  h.ts.push(Date.now());
+  if (h.prices.length > SPARK_MAX) { h.prices.shift(); h.liqs.shift(); h.ts.shift(); }
+  h.liq = liq;
+  return h;
+}
+
+/* ---------- sparkline SVG ---------- */
+function sparkSVG(vals, w=56, h=16){
+  if (!vals || vals.length < 2) return `<svg class="spark flat" viewBox="0 0 ${w} ${h}"><path d="M0,${h/2} L${w},${h/2}"/></svg>`;
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = max - min || 1;
+  const step = w / (vals.length - 1);
+  let d = "";
+  for (let i = 0; i < vals.length; i++){
+    const x = i * step;
+    const y = h - 1 - ((vals[i] - min) / range) * (h - 2);
+    d += (i ? " L" : "M") + x.toFixed(1) + "," + y.toFixed(1);
+  }
+  const dir = vals[vals.length-1] >= vals[0] ? "up" : "down";
+  return `<svg class="spark ${dir}" viewBox="0 0 ${w} ${h}"><path d="${d}"/></svg>`;
+}
+
+/* ---------- score ---------- */
+function score(r, f){
+  let s = 0;
+  s += clamp(r.m5 / 5, 0, 40);                        // momentum
+  s += clamp((r.h1 || 0) / 10, -10, 25);              // 1h confirmation
+  s += r.poolDelta != null ? clamp(r.poolDelta, -20, 20) : 0;  // pool trend
+  s += clamp(Math.log10((r.liq || 1) + 1) * 6, 0, 25);        // size
+  const ageH = r.age != null ? r.age/36e5 : 999;
+  s += clamp(20 - ageH, 0, 15);                       // freshness
+  return clamp(Math.round(s), 0, 100);
+}
+
+/* ---------- filters ---------- */
+function filters(){
+  return { maxAgeH: AGES[+$("age").value],
+           minPool: POOLS[+$("pool").value],
+           minM5:   MOMS[+$("mom").value] };
+}
+function paint(){
+  $("agev").textContent  = AGE_L[+$("age").value];
+  const p = POOLS[+$("pool").value];
+  $("poolv").textContent = p === 0 ? "any" : fmtUsd(p);
+  $("momv").textContent  = "+" + MOMS[+$("mom").value] + "%";
+  LS.set("filters", {age:+$("age").value, pool:+$("pool").value, mom:+$("mom").value});
+}
+["age","pool","mom"].forEach(id => $(id).addEventListener("input", paint));
+(function restore(){
+  const f = LS.get("filters", null);
+  if (f){ $("age").value = f.age; $("pool").value = f.pool; $("mom").value = f.mom; }
+})();
+paint();
+
+/* ---------- presets ---------- */
+document.querySelectorAll("#presets .chip").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const p = PRESETS[btn.dataset.preset];
+    if (!p) return;
+    $("age").value = p.age; $("pool").value = p.pool; $("mom").value = p.mom;
+    paint();
+    document.querySelectorAll("#presets .chip").forEach(b => b.classList.toggle("on", b === btn));
+    toast("Preset: " + btn.textContent);
+  });
+});
+
+/* ---------- theme & sound ---------- */
+function applyTheme(){
+  document.body.classList.toggle("dark", theme === "dark");
+  LS.set("theme", theme);
+}
+applyTheme();
+$("theme").addEventListener("click", () => {
+  theme = theme === "dark" ? "light" : "dark";
+  applyTheme();
+});
+$("sound").addEventListener("click", () => {
+  soundOn = !soundOn; LS.set("sound", soundOn);
+  $("sound").style.opacity = soundOn ? "1" : "0.35";
+  toast(soundOn ? "Sound on" : "Sound off");
+});
+$("sound").style.opacity = soundOn ? "1" : "0.35";
+
+/* ---------- fetch ---------- */
+async function getJson(url){
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+let candidates = [], lastRefresh = 0;
+async function refreshCandidates(){
+  if (Date.now() - lastRefresh < 180000 && candidates.length) return;
+  const set = [];
+  for (const url of [
+    "https://api.dexscreener.com/token-boosts/latest/v1",
+    "https://api.dexscreener.com/token-profiles/latest/v1",
+    "https://api.dexscreener.com/token-boosts/top/v1"
+  ]){
+    try {
+      const list = await getJson(url);
+      for (const t of (Array.isArray(list) ? list : [])){
+        if (t.chainId === "solana" && t.tokenAddress && !set.includes(t.tokenAddress))
+          set.push(t.tokenAddress);
+      }
+    } catch(e){}
+  }
+  if (set.length){ candidates = set.slice(0, 90); lastRefresh = Date.now(); }
+}
+
+async function pairsFor(mints){
+  const out = [];
+  for (let i = 0; i < mints.length; i += 30){
+    const chunk = mints.slice(i, i+30).join(",");
+    try {
+      const d = await getJson("https://api.dexscreener.com/latest/dex/tokens/" + chunk);
+      for (const p of (d.pairs || [])) if (p.chainId === "solana") out.push(p);
+    } catch(e){}
+    await sleep(250);
+  }
+  const best = new Map();
+  for (const p of out){
+    const k = p.baseToken?.address;
+    if (!k) continue;
+    const cur = best.get(k);
+    if (!cur || (p.liquidity?.usd||0) > (cur.liquidity?.usd||0)) best.set(k, p);
+  }
+  return [...best.values()];
+}
+
+/* ---------- sound & notify ---------- */
+let audioCtx;
+function beep(){
+  if (!soundOn) return;
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.frequency.value = 660; g.gain.value = 0.05;
+    o.start(); setTimeout(() => o.stop(), 180);
+  } catch(e){}
+}
+
+const alerted = new Set();
+function notify(r){
+  if (!$("alerts").checked) return;
+  beep();
+  if (window.Notification && Notification.permission === "granted"){
+    new Notification(r.sym + " is moving", {
+      body: `Score ${r.score} · 5m ${pct(r.m5)} · pool ${fmtUsd(r.liq)}`
+    });
+  }
+}
+
+/* ---------- main pass ---------- */
+let running = false, cycle = 0;
+let sortKey = "score", sortDir = -1;
+let lastRows = [];
+
+async function pass(){
+  const f = filters();
+  await refreshCandidates();
+  if (!candidates.length){
+    $("ticker").textContent = "feed unavailable — retrying";
+    return;
+  }
+  $("ticker").textContent = "reading…";
+  const pairs = await pairsFor(candidates);
+  const now = Date.now();
+  const rows = [];
+
+  for (const p of pairs){
+    const mint = p.baseToken.address;
+    const liq  = p.liquidity?.usd ?? 0;
+    const age  = p.pairCreatedAt ? now - p.pairCreatedAt : null;
+    const ageH = age != null ? age/36e5 : null;
+    const m5   = p.priceChange?.m5 ?? 0;
+    const h1   = p.priceChange?.h1 ?? 0;
+    const price = parseFloat(p.priceUsd) || 0;
+
+    const h = pushHistory(mint, price, liq);
+    const prev = h.prices.length >= 2 ? h.liqs[h.liqs.length-2] : null;
+    const poolDelta = prev != null && prev > 0 ? (liq - prev) / prev * 100 : null;
+
+    if (ageH != null && ageH > f.maxAgeH) continue;
+    if (liq < f.minPool) continue;
+    if (m5 < f.minM5) continue;
+    if ($("watch").checked && !watchlist.has(mint)) continue;
+
+    const sustained   = h1 > 0;
+    const poolHolding = poolDelta == null || poolDelta > -3;
+    const score = score({m5, h1, liq, age, poolDelta}, f);
+    const hot = sustained && poolHolding && m5 >= f.minM5 * 2 && score >= 55;
+
+    rows.push({
+      mint, sym: p.baseToken.symbol || "?", liq, age, m5, h1,
+      poolDelta, sustained, poolHolding, score, hot,
+      price, prices: h.prices.slice(-SPARK_MAX)
+    });
+  }
+
+  // stats
+  $("s-track").textContent = hist.size;
+  $("s-move").textContent  = rows.length;
+  $("s-hot").textContent   = rows.filter(r => r.hot).length;
+  $("s-watch").textContent = watchlist.size;
+  $("s-cyc").textContent   = ++cycle;
+  $("s-pass").textContent  = new Date().toLocaleTimeString();
+
+  if (!rows.length){
+    $("tbl").classList.add("hidden");
+    $("empty").classList.remove("hidden");
+    $("empty").textContent = "Nothing is moving that meets your filters. Lower the 5-minute threshold or widen the age to see more — a quiet screen is a normal screen.";
+    lastRows = [];
+  } else {
+    $("empty").classList.add("hidden");
+    $("tbl").classList.remove("hidden");
+    lastRows = rows;
+    renderRows(rows, f);
+  }
+  $("ticker").textContent = rows.length + " moving · " + new Date().toLocaleTimeString();
+}
+
+function renderRows(rows, f){
+  // sort
+  rows.sort((a,b) => {
+    let av = a[sortKey], bv = b[sortKey];
+    if (typeof av === "string") return av.localeCompare(bv) * sortDir;
+    if (av == null) av = -Infinity;
+    if (bv == null) bv = -Infinity;
+    return (av - bv) * sortDir;
+  });
+
+  $("rows").innerHTML = rows.map(r => {
+    const watched = watchlist.has(r.mint);
+    const scoreCls = r.score >= 65 ? "hi" : r.score >= 40 ? "mid" : "lo";
+    const tags = [];
+    tags.push(r.sustained ? "hour up too" : "single spike");
+    if (r.poolDelta != null) tags.push(r.poolDelta >= 0 ? "pool growing" : "pool shrinking");
+    if (r.hot && !alerted.has(r.mint)){ alerted.add(r.mint); notify(r); }
+    return `<tr class="${r.hot?"hot":""} ${watched?"watched":""}" data-mint="${r.mint}">
+      <td>
+        <div class="sym">
+          <span class="star ${watched?"on":""}" data-star="${r.mint}" title="Watch">${watched?"★":"☆"}</span>
+          <a href="#" data-open="${r.mint}">${r.sym}</a>
+          <button class="copy" data-copy="${r.mint}" title="Copy mint">⧉</button>
+          ${r.hot ? '<span class="flare">check it</span>' : ""}
+        </div>
+        <span class="tags">${tags.join(" · ")}</span>
+      </td>
+      <td class="n"><span class="score ${scoreCls}">${r.score}</span></td>
+      <td class="n up">+${r.m5.toFixed(0)}%</td>
+      <td class="n hide-s ${r.h1>=0?"up":"down"}">${r.h1>0?"+":""}${r.h1.toFixed(0)}%</td>
+      <td class="n hide-s">${sparkSVG(r.prices)}</td>
+      <td class="n">${fmtUsd(r.liq)}</td>
+      <td class="n hide-s ${r.poolDelta==null?"":r.poolDelta>=0?"up":"down"}">${r.poolDelta==null?"—":(r.poolDelta>0?"+":"")+r.poolDelta.toFixed(1)+"%"}</td>
+      <td class="n hide-s">${ageStr(r.age)}</td>
+    </tr>`;
+  }).join("");
+
+  // header sort indicators
+  document.querySelectorAll("th[data-sort]").forEach(th => {
+    th.classList.toggle("sorted", th.dataset.sort === sortKey);
+    const a = th.querySelector(".arrow");
+    if (a) a.textContent = th.dataset.sort === sortKey ? (sortDir < 0 ? "↓" : "↑") : "↕";
+  });
+}
+
+/* ---------- table interactions ---------- */
+document.querySelectorAll("th[data-sort]").forEach(th => {
+  th.addEventListener("click", () => {
+    const k = th.dataset.sort;
+    if (k === sortKey) sortDir = -sortDir;
+    else { sortKey = k; sortDir = (k === "sym") ? 1 : -1; }
+    if (lastRows.length) renderRows([...lastRows], filters());
+  });
+});
+
+$("rows").addEventListener("click", e => {
+  const star = e.target.closest("[data-star]");
+  if (star){ toggleWatch(star.dataset.star); return; }
+  const copy = e.target.closest("[data-copy]");
+  if (copy){ copyMint(copy.dataset.copy); return; }
+  const open = e.target.closest("[data-open]");
+  if (open){ e.preventDefault(); openDrawer(open.dataset.open); return; }
+});
+
+/* ---------- watchlist ---------- */
+function toggleWatch(mint){
+  if (watchlist.has(mint)) watchlist.delete(mint);
+  else watchlist.add(mint);
+  LS.set("watch", [...watchlist]);
+  $("s-watch").textContent = watchlist.size;
+  if (lastRows.length) renderRows([...lastRows], filters());
+  toast(watchlist.has(mint) ? "Added to watchlist" : "Removed from watchlist");
+}
+$("watch").addEventListener("change", () => {
+  if (lastRows.length) renderRows([...lastRows], filters());
+});
+
+function copyMint(mint){
+  navigator.clipboard?.writeText(mint).then(
+    () => toast("Mint copied"),
+    () => toast("Copy failed")
+  );
+}
+
+/* ---------- drawer ---------- */
+let drawerMint = null;
+function openDrawer(mint){
+  drawerMint = mint;
+  const r = lastRows.find(x => x.mint === mint);
+  const h = hist.get(mint);
+  if (!r) return;
+  $("d-sym").textContent = r.sym;
+  $("d-mint").textContent = mint;
+  $("d-star").textContent = watchlist.has(mint) ? "★ Unwatch" : "☆ Watch";
+  $("d-star").onclick = () => { toggleWatch(mint); openDrawer(mint); };
+  $("d-copy").onclick = () => copyMint(mint);
+  $("d-dex").onclick = () => window.open(`https://dexscreener.com/solana/${mint}`, "_blank");
+
+  const kvs = [
+    ["Score", r.score],
+    ["5m", pct(r.m5)],
+    ["1h", r.h1 != null ? pct(r.h1) : "—"],
+    ["Pool", fmtUsd(r.liq)],
+    ["Pool Δ", r.poolDelta == null ? "—" : (r.poolDelta>0?"+":"") + r.poolDelta.toFixed(2) + "%"],
+    ["Age", ageStr(r.age)],
+    ["Price", r.price ? "$" + r.price.toPrecision(4) : "—"],
+    ["First seen", h ? new Date(h.firstSeen).toLocaleTimeString() : "—"]
+  ];
+  $("d-kvs").innerHTML = kvs.map(([k,v]) =>
+    `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
+
+  // price history log
+  if (h && h.prices.length){
+    $("d-hist").innerHTML = h.prices.map((p, i) => {
+      const t = new Date(h.ts[i]).toLocaleTimeString();
+      const l = h.liqs[i];
+      const dp = i ? ((p - h.prices[i-1]) / (h.prices[i-1] || 1) * 100) : 0;
+      const cls = dp > 0 ? "up" : dp < 0 ? "down" : "";
+      return `${t} · <b class="${cls}">${p.toPrecision(4)}</b> · pool ${fmtUsd(l)}`;
+    }).reverse().slice(0, 20).join("<br>");
+  } else {
+    $("d-hist").textContent = "collecting…";
+  }
+  $("drawer").classList.add("open");
+  $("drawer").setAttribute("aria-hidden", "false");
+  $("backdrop").classList.add("on");
+}
+function closeDrawer(){
+  $("drawer").classList.remove("open");
+  $("drawer").setAttribute("aria-hidden", "true");
+  $("backdrop").classList.remove("on");
+  drawerMint = null;
+}
+$("dclose").onclick = closeDrawer;
+$("d-close").onclick = closeDrawer;
+$("backdrop").onclick = closeDrawer;
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrawer(); });
+
+/* ---------- export CSV ---------- */
+$("export").addEventListener("click", () => {
+  if (!lastRows.length) return toast("Nothing to export");
+  const head = ["symbol","mint","score","m5","h1","pool_usd","pool_delta_pct","age_ms","price"];
+  const lines = [head.join(",")];
+  for (const r of lastRows){
+    lines.push([r.sym, r.mint, r.score, r.m5, r.h1,
+                Math.round(r.liq), r.poolDelta==null?"":r.poolDelta.toFixed(2),
+                r.age==null?"":Math.round(r.age), r.price].join(","));
+  }
+  const blob = new Blob([lines.join("\n")], {type:"text/csv"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "pulse-" + new Date().toISOString().slice(0,19).replace(/[:T]/g,"-") + ".csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast("Exported " + lastRows.length + " rows");
+});
+
+/* ---------- loop ---------- */
+async function loop(){
+  while (running){
+    await pass();
+    for (let i = 20; i > 0 && running; i--){
+      $("next").textContent = "next in " + i + "s";
+      await sleep(1000);
+    }
+  }
+  $("next").textContent = "—";
+}
+
+$("alerts").addEventListener("change", e => {
+  if (e.target.checked && window.Notification && Notification.permission === "default"){
+    Notification.requestPermission();
+  }
+});
+$("go").addEventListener("click", () => {
+  running = true; alerted.clear();
+  $("go").disabled = true; $("stop").classList.remove("hidden");
+  loop();
+});
+$("stop").addEventListener("click", () => {
+  running = false;
+  $("go").disabled = false; $("stop").classList.add("hidden");
+  $("ticker").textContent = "stopped";
+});
+</script>
+</body>
+</html>
