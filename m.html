@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse — Multi-Stage Solana Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0F172A; --card: #1E293B; --border: #334155; 
+    --text: #F8FAFC; --text-dim: #94A3B8; 
+    --accent: #3B82F6; --accent-hover: #2563EB;
+    --pass: #10B981; --pass-bg: rgba(16,185,129,0.1);
+    --warn: #F59E0B; --warn-bg: rgba(245,158,11,0.1);
+    --fail: #EF4444; --fail-bg: rgba(239,68,68,0.1);
+    box-sizing: border-box;
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  body { 
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: "IBM Plex Sans", system-ui, sans-serif; font-size: 15px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased; 
+  }
+  .wrap { max-width: 960px; margin: 0 auto; padding: 0 20px 90px; }
+  header { padding: 40px 0 24px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+  h1 { font-size: clamp(28px, 5vw, 36px); font-weight: 700; margin: 0 0 8px; letter-spacing: -0.02em; }
+  .standfirst { margin: 0; color: var(--text-dim); max-width: 65ch; }
+  
+  .controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 24px; }
+  button {
+    font-family: inherit; font-size: 14px; font-weight: 600; padding: 10px 18px;
+    border: none; background: var(--text); color: var(--bg); cursor: pointer; border-radius: 6px;
+    transition: 0.15s ease;
+  }
+  button:hover { opacity: 0.9; }
+  button:disabled { opacity: 0.5; cursor: progress; }
+  button.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  button.ghost:hover { background: var(--border); }
+  .status { font-family: "IBM Plex Mono", monospace; font-size: 13px; color: var(--text-dim); }
+
+  .feed { display: flex; flex-direction: column; gap: 16px; }
+  .card { 
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px; 
+    padding: 20px; transition: border-color 0.2s;
+  }
+  .card.hot { border-color: var(--accent); box-shadow: 0 0 15px rgba(59,130,246,0.1); }
+  
+  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+  .title-group h2 { margin: 0; font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 10px; }
+  .score-badge { 
+    background: var(--accent); color: #fff; padding: 4px 10px; border-radius: 6px; 
+    font-size: 13px; font-weight: 700; letter-spacing: 0.5px;
+  }
+  .price-moves { margin-top: 4px; font-family: "IBM Plex Mono", monospace; font-size: 14px; font-weight: 600; }
+  .up { color: var(--pass); } .down { color: var(--fail); }
+
+  .metrics { 
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); 
+    gap: 12px; margin-bottom: 16px; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 6px;
+  }
+  .metric { display: flex; flex-direction: column; font-size: 13px; }
+  .metric span { color: var(--text-dim); font-size: 12px; margin-bottom: 2px; }
+  .metric b { font-family: "IBM Plex Mono", monospace; font-weight: 500; }
+
+  .flags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; font-size: 12.5px; font-weight: 600; }
+  .flags div { padding: 4px 10px; border-radius: 4px; }
+  .flags .pass { background: var(--pass-bg); color: var(--pass); border: 1px solid rgba(16,185,129,0.2); }
+  .flags .fail { background: var(--fail-bg); color: var(--fail); border: 1px solid rgba(239,68,68,0.2); }
+
+  .card-footer { 
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+    padding-top: 16px; border-top: 1px solid var(--border); font-size: 13.5px;
+  }
+  .socials { display: flex; gap: 12px; color: var(--text-dim); }
+  .socials a { color: var(--text); text-decoration: none; font-weight: 500; }
+  .socials a:hover { text-decoration: underline; }
+  .socials .missing { opacity: 0.4; pointer-events: none; }
+  
+  .actions { display: flex; gap: 10px; }
+  .btn-link { 
+    text-decoration: none; padding: 8px 14px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    background: var(--border); color: var(--text); transition: 0.15s;
+  }
+  .btn-link:hover { background: #475569; }
+  .btn-link.fomo { background: var(--accent); color: #fff; }
+  .btn-link.fomo:hover { background: var(--accent-hover); }
+
+  .empty { padding: 30px; text-align: center; color: var(--text-dim); border: 1px dashed var(--border); border-radius: 8px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Pulse 2.0</h1>
+    <p class="standfirst">Multi-stage scanner. Evaluates token momentum, volume quality, buy pressure, and distribution risks in real time.</p>
+  </header>
+
+  <div class="controls">
+    <button id="go">Start Pulse Scanner</button>
+    <button id="stop" class="ghost hidden">Stop</button>
+    <div id="status" class="status">Idle</div>
+  </div>
+
+  <div id="feed" class="feed">
+    <div id="empty" class="empty">Click Start to begin scanning Solana tokens.</div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const fmtUsd = n => n == null ? "—" : "$" + (n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toFixed(0));
+const ageStr = ms => { if (ms == null) return "—"; const h = ms/36e5; return h < 1 ? Math.round(h*60)+"m" : h < 48 ? h.toFixed(0)+"h" : Math.round(h/24)+"d"; };
+
+let candidates = [], lastRefresh = 0, running = false;
+// Store historical snapshots for acceleration and distribution checks
+// Format: map[mint] = { firstSeen, lastLiq, snaps: [{time, m5}] }
+const history = new Map(); 
+
+async function getJson(url){
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+async function refreshCandidates(){
+  if (Date.now() - lastRefresh < 180000 && candidates.length) return;
+  const set = new Set();
+  const endpoints = [
+    "https://api.dexscreener.com/token-boosts/latest/v1",
+    "https://api.dexscreener.com/token-profiles/latest/v1",
+    "https://api.dexscreener.com/token-boosts/top/v1"
+  ];
+  for (const url of endpoints){
+    try {
+      const list = await getJson(url);
+      for (const t of (Array.isArray(list) ? list : [])){
+        if (t.chainId === "solana" && t.tokenAddress) set.add(t.tokenAddress);
+      }
+    } catch(e){}
+  }
+  if (set.size){ candidates = [...set].slice(0, 90); lastRefresh = Date.now(); }
+}
+
+async function fetchPairs(mints){
+  const out = [];
+  for (let i = 0; i < mints.length; i += 30){
+    const chunk = mints.slice(i, i+30).join(",");
+    try {
+      const d = await getJson("https://api.dexscreener.com/latest/dex/tokens/" + chunk);
+      for (const p of (d.pairs || [])) if (p.chainId === "solana") out.push(p);
+    } catch(e){}
+    await sleep(300);
+  }
+  const best = new Map();
+  for (const p of out){
+    const k = p.baseToken?.address;
+    if (!k) continue;
+    const cur = best.get(k);
+    if (!cur || (p.liquidity?.usd||0) > (cur.liquidity?.usd||0)) best.set(k, p);
+  }
+  return [...best.values()];
+}
+
+function processPair(p, now) {
+  const mint = p.baseToken.address;
+  const sym = p.baseToken.symbol || "?";
+  const liq = p.liquidity?.usd || 0;
+  const fdv = p.fdv || 0;
+  const age = p.pairCreatedAt ? now - p.pairCreatedAt : null;
+  const m5 = p.priceChange?.m5 || 0;
+  const h1 = p.priceChange?.h1 || 0;
+  
+  const v5 = p.volume?.m5 || 0;
+  const b5 = p.txns?.m5?.buys || 0;
+  const s5 = p.txns?.m5?.sells || 0;
+  const bsRatio = s5 > 0 ? (b5 / s5) : (b5 > 0 ? b5 : 1);
+
+  // Socials extraction
+  let twitter = null, telegram = null, website = null;
+  if (p.info?.socials) {
+    twitter = p.info.socials.find(s => s.type === 'twitter')?.url;
+    telegram = p.info.socials.find(s => s.type === 'telegram')?.url;
+  }
+  if (p.info?.websites?.length) website = p.info.websites[0].url;
+
+  // History & Acceleration Tracking
+  let snapData = history.get(mint) || { firstSeen: now, lastLiq: liq, snaps: [] };
+  const poolDelta = snapData.lastLiq ? ((liq - snapData.lastLiq) / snapData.lastLiq) * 100 : 0;
+  snapData.lastLiq = liq;
+  snapData.snaps.push({ time: now, m5: m5 });
+  if (snapData.snaps.length > 5) snapData.snaps.shift();
+  history.set(mint, snapData);
+
+  let accelerating = false;
+  if (snapData.snaps.length >= 2) {
+    let prev = snapData.snaps[snapData.snaps.length - 2];
+    if (m5 > prev.m5 && (m5 - prev.m5) >= 3) accelerating = true;
+  }
+
+  // Scoring Engine (0-100)
+  let score = 0;
+  if (m5 > 3) score += 15;
+  if (m5 > 10) score += 15;
+  if (h1 > 0) score += 10;
+  if (h1 > m5) score += 10;
+  if (v5 > 5000) score += 15;
+  if (bsRatio > 1.2) score += 15;
+  if (accelerating) score += 10;
+  if (poolDelta > 1) score += 10;
+  score = Math.min(100, Math.max(0, score));
+
+  // Risk Detection Engine
+  let risks = [];
+  let flags = [];
+  
+  if (poolDelta < -3 && m5 > 5) risks.push("Liquidity draining during climb");
+  if (m5 > 15 && v5 < 2000) risks.push("Spike on very low volume");
+  if (bsRatio < 0.6 && m5 > 0) risks.push(`Heavy sell pressure (${bsRatio.toFixed(1)}x)`);
+  if (liq < 8000) risks.push("Micro liquidity (<$8K)");
+  if (fdv > 0 && liq/fdv < 0.015) risks.push("Extreme low Liq/MC ratio (<1.5%)");
+
+  if (h1 > 0 && m5 > 0) flags.push('<div class="pass">✓ Sustained (1h + 5m up)</div>');
+  if (poolDelta >= 0) flags.push('<div class="pass">✓ Liquidity holding</div>');
+  if (accelerating) flags.push('<div class="pass">✓ Accelerating move</div>');
+  risks.forEach(r => flags.push(`<div class="fail">⚠ ${r}</div>`));
+
+  return {
+    mint, sym, liq, fdv, age, m5, h1, v5, bsRatio, poolDelta, 
+    score, flags, twitter, telegram, website
+  };
+}
+
+function renderFeed(items) {
+  const feed = $("feed");
+  if (!items.length) {
+    feed.innerHTML = `<div class="empty">No tokens currently meet the base momentum thresholds.</div>`;
+    return;
+  }
+
+  feed.innerHTML = items.map(r => `
+    <div class="card ${r.score >= 70 ? 'hot' : ''}">
+      <div class="card-header">
+        <div class="title-group">
+          <h2>${r.sym} <span style="font-size: 13px; font-weight: normal; color: var(--text-dim); margin-left: 8px;">${ageStr(r.age)} old</span></h2>
+          <div class="price-moves">
+            <span class="${r.m5 >= 0 ? 'up' : 'down'}">${r.m5 >= 0 ? '+' : ''}${r.m5.toFixed(1)}% 5m</span> · 
+            <span class="${r.h1 >= 0 ? 'up' : 'down'}">${r.h1 >= 0 ? '+' : ''}${r.h1.toFixed(1)}% 1h</span>
+          </div>
+        </div>
+        <div class="score-badge">${r.score} / 100 Momentum</div>
+      </div>
+      
+      <div class="metrics">
+        <div class="metric"><span>Liquidity</span> <b>${fmtUsd(r.liq)}</b></div>
+        <div class="metric"><span>Market Cap</span> <b>${fmtUsd(r.fdv)}</b></div>
+        <div class="metric"><span>5m Volume</span> <b>${fmtUsd(r.v5)}</b></div>
+        <div class="metric"><span>Buy/Sell Ratio</span> <b>${r.bsRatio.toFixed(1)}x</b></div>
+        <div class="metric"><span>Liq Change</span> <b>${r.poolDelta >= 0 ? '+' : ''}${r.poolDelta.toFixed(1)}%</b></div>
+      </div>
+
+      <div class="flags">${r.flags.join('')}</div>
+
+      <div class="card-footer">
+        <div class="socials">
+          <span>Social:</span>
+          <a href="${r.twitter || '#'}" target="_blank" class="${r.twitter ? '' : 'missing'}">X (Twitter)</a> ·
+          <a href="${r.telegram || '#'}" target="_blank" class="${r.telegram ? '' : 'missing'}">Telegram</a> ·
+          <a href="${r.website || '#'}" target="_blank" class="${r.website ? '' : 'missing'}">Website</a>
+        </div>
+        <div class="actions">
+          <a href="https://fomodex.live/?token=${r.mint}" target="_blank" class="btn-link fomo">Open in FOMO</a>
+          <a href="https://dexscreener.com/solana/${r.mint}" target="_blank" class="btn-link">DexScreener</a>
+          <a href="https://rugcheck.xyz/tokens/${r.mint}" target="_blank" class="btn-link">RugCheck</a>
+          <button onclick="navigator.clipboard.writeText('${r.mint}')" class="btn-link ghost" style="padding: 7px 12px; border: 1px solid var(--border);">Copy</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function pass(){
+  $("status").textContent = "Refreshing candidate pool...";
+  await refreshCandidates();
+  
+  $("status").textContent = `Scanning ${candidates.length} active tokens...`;
+  const pairs = await fetchPairs(candidates);
+  
+  const now = Date.now();
+  let results = [];
+
+  for (const p of pairs){
+    // Stage 1: Base Discovery Filter (Must have at least a blip of volume and minor movement)
+    if ((p.volume?.m5 || 0) < 500 || (p.priceChange?.m5 || 0) < 2) continue;
+    
+    // Stages 2, 3 & 4: Momentum, Quality & Risk processing
+    const processed = processPair(p, now);
+    
+    // Drop completely dead or heavily penalized tokens
+    if (processed.score > 20) results.push(processed);
+  }
+
+  // Stage 5: Ranking
+  results.sort((a, b) => b.score - a.score || b.m5 - a.m5);
+  
+  renderFeed(results);
+  $("status").textContent = `Tracking ${results.length} moving tokens · Next scan in 15s`;
+}
+
+// Memory Leak Cleanup (Run every 5 minutes to clear stale history)
+setInterval(() => {
+  const cutoff = Date.now() - (60 * 60 * 1000); // 1 hour
+  for (const [mint, data] of history.entries()) {
+    if (data.snaps.length && data.snaps[data.snaps.length-1].time < cutoff) {
+      history.delete(mint);
+    }
+  }
+}, 300000);
+
+async function loop(){
+  $("empty").classList.add("hidden");
+  while (running){
+    try { await pass(); } 
+    catch(e) { $("status").textContent = "API error, retrying shortly..."; }
+    for (let i = 0; i < 15 && running; i++) await sleep(1000);
+  }
+}
+
+$("go").addEventListener("click", () => {
+  running = true;
+  $("go").disabled = true; 
+  $("stop").classList.remove("hidden");
+  loop();
+});
+
+$("stop").addEventListener("click", () => {
+  running = false;
+  $("go").disabled = false; 
+  $("stop").classList.add("hidden");
+  $("status").textContent = "Scanner paused.";
+});
+</script>
+</body>
+</html>
