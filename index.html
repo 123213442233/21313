@@ -295,6 +295,17 @@ function buildChecks(dex, rug){
   const c = [];
   const add = (state, title, readout, note) => c.push({state, title, readout, note});
 
+  // context first — thresholds tuned for fresh launches misfire on mature tokens
+  const liq = dex?.liquidity?.usd ?? rug?.totalMarketLiquidity ?? null;
+  const mcap = dex?.marketCap || dex?.fdv || null;
+  const capIsFdv = !dex?.marketCap && !!dex?.fdv;
+  const age = dex?.pairCreatedAt ? Date.now() - dex.pairCreatedAt : null;
+  const ageH = age != null ? age / 36e5 : null;
+  const holders = rug?.totalHolders ?? null;
+  // an established token: weeks old, deep, widely held
+  const mature = (ageH != null && ageH > 336) && (liq != null && liq > 1e6) &&
+                 (holders == null || holders > 10000);
+
   // 1. authorities
   if (rug){
     const mintAuth = rug.mintAuthority, freezeAuth = rug.freezeAuthority;
@@ -318,16 +329,20 @@ function buildChecks(dex, rug){
       .sort((a,b) => b.liq - a.liq);
     if (withLp.length){
       const locked = withLp[0].lp.lpLockedPct;
-      const many = rug.markets.length > 1 ? ` Across ${rug.markets.length} pools — this reads the deepest one; check the others on RugCheck.` : "";
-      add(locked >= 95 ? "pass" : locked >= 50 ? "warn" : "fail", "Liquidity locked or burned",
-          pct(locked),
-          (locked >= 95 ? "The pool cannot be pulled out from under the price."
-                        : "Part of the pool is free to withdraw at any moment.") + many);
+      const many = rug.markets.length > 1 ? ` Spread across ${rug.markets.length} pools.` : "";
+      if (mature){
+        add("pass", "Liquidity locked or burned", pct(locked),
+            "Not a meaningful risk here — on a token this size liquidity comes from many independent providers, so there is no single pool anyone could pull." + many);
+      } else {
+        add(locked >= 95 ? "pass" : locked >= 50 ? "warn" : "fail", "Liquidity locked or burned",
+            pct(locked),
+            (locked >= 95 ? "The pool cannot be pulled out from under the price."
+                          : "Part of the pool is free to withdraw at any moment.") + many);
+      }
     }
   }
 
-  // 3. absolute liquidity — fall back to RugCheck if DexScreener omits it
-  const liq = dex?.liquidity?.usd ?? rug?.totalMarketLiquidity ?? null;
+  // 3. absolute liquidity
   if (liq != null){
     add(liq >= 1e5 ? "pass" : liq >= 3e4 ? "warn" : "fail", "Pool depth",
         fmtUsd(liq),
@@ -340,8 +355,6 @@ function buildChecks(dex, rug){
   }
 
   // 4. liquidity vs market cap
-  const mcap = dex?.marketCap || dex?.fdv || null;
-  const capIsFdv = !dex?.marketCap && !!dex?.fdv;
   if (liq != null && mcap){
     const ratio = liq / mcap * 100;
     add(ratio >= 10 ? "pass" : ratio >= 5 ? "warn" : "fail", "Pool vs market cap",
@@ -368,28 +381,34 @@ function buildChecks(dex, rug){
   // 6. creator still holding?
   if (rug && rug.creatorBalance != null && rug.token?.supply){
     const share = rug.creatorBalance / rug.token.supply * 100;
-    add(share < 0.01 ? "warn" : share > 10 ? "fail" : "pass", "Creator's remaining stake",
+    if (mature && share < 0.01){
+      add("pass", "Creator's remaining stake", "sold",
+          "The creator is out, but at this age and size the token no longer depends on them.");
+    } else {
+      add(share < 0.01 ? "warn" : share > 10 ? "fail" : "pass", "Creator's remaining stake",
         share < 0.01 ? "SOLD" : pct(share),
         share < 0.01 ? "The creator has fully exited. They took their money off the table before you put yours on."
         : share > 10 ? "The creator still holds a stake big enough to flatten the price on its own."
         : "The creator holds a modest amount — aligned, at least for now.");
+    }
   }
 
   // 7. holder concentration, excluding the pool
   if (rug && Array.isArray(rug.topHolders) && rug.topHolders.length){
     const real = rug.topHolders.filter(h => !h.insider && h.pct < 50);
     const top10 = real.slice(0,10).reduce((s,h) => s + (h.pct||0), 0);
-    add(top10 > 30 ? "fail" : top10 > 18 ? "warn" : "pass", "Top 10 holders (pool excluded)",
+    const limit = mature ? 35 : 18;
+    add(top10 > limit + 12 ? "fail" : top10 > limit ? "warn" : "pass", "Top 10 holders (pool excluded)",
         pct(top10),
-        top10 > 30 ? "A handful of wallets can end this whenever they choose."
-        : top10 > 18 ? "Concentrated enough that a few coordinated sells would hurt."
-        : "Supply is spread across many wallets.");
+        top10 > limit + 12 ? "A handful of wallets can end this whenever they choose."
+        : top10 > limit ? "Concentrated enough that a few coordinated sells would hurt."
+        : mature ? "Normal spread for a token with this many holders."
+                 : "Supply is spread across many wallets.");
   }
 
   // 8. age
-  const age = dex?.pairCreatedAt ? Date.now() - dex.pairCreatedAt : null;
   if (age != null){
-    const h = age / 36e5;
+    const h = ageH;
     add(h < 1 ? "fail" : h < 24 ? "warn" : "pass", "Age since launch",
         ageString(age),
         h < 1 ? "Minutes old. Nothing meaningful is knowable yet, and the insiders are still in position."
@@ -408,11 +427,11 @@ function buildChecks(dex, rug){
                   : "Trade count is in proportion to the token's size.");
   }
 
-  return {checks:c, age, liq};
+  return {checks:c, age, liq, mature};
 }
 
 function render(mint, dex, rug){
-  const {checks, age, liq} = buildChecks(dex, rug);  const fails = checks.filter(c => c.state==="fail").length;
+  const {checks, age, liq, mature} = buildChecks(dex, rug);  const fails = checks.filter(c => c.state==="fail").length;
   const warns = checks.filter(c => c.state==="warn").length;
   const passes = checks.filter(c => c.state==="pass").length;
   const skips = checks.filter(c => c.state==="skip").length;
@@ -426,7 +445,7 @@ function render(mint, dex, rug){
   else if (skips >= 1){ head = "Incomplete — key data missing."; }
   else if (warns >= 3){ head = "Nothing obviously broken, plenty uncomfortable."; }
   else { head = "Clears the structural checks."; }
-  tag = name + (sym ? " · " + sym : "");
+  tag = name + (sym ? " · " + sym : "") + (mature ? " · established token" : "");
 
   $("v-tag").textContent = tag;
   $("v-head").textContent = head;
