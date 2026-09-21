@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Firehose — every launch, and what survives</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EDEFF1; --ink:#14222B; --ink-soft:#54666F; --rule:#CED5DA;
+    --card:#F7F8F9; --fail:#A33326; --warn:#9A6B10; --pass:#2C6A52; --accent:#2C6A52; --hot:#F0F5F2;
+  }
+  body.dark{
+    --paper:#0D181E; --ink:#E6EDF1; --ink-soft:#8CA0AC; --rule:#22333D;
+    --card:#14222B; --fail:#E07A6E; --warn:#E0B96E; --pass:#6FCB9F; --accent:#6FCB9F; --hot:#16292F;
+  }
+  *,*::before,*::after{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.55;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 20px 90px}
+  header{padding:48px 0 18px;position:relative}
+  h1{font-size:clamp(32px,6vw,46px);line-height:1.03;font-weight:700;letter-spacing:-.025em;margin:0 0 12px}
+  .standfirst{margin:0;max-width:64ch;color:var(--ink-soft);font-size:17px}
+  nav{margin:16px 0 0;font-size:14.5px;display:flex;gap:18px;flex-wrap:wrap}
+  nav a{color:var(--ink);text-underline-offset:3px}
+  .topbar{position:absolute;top:44px;right:0}
+  .icon-btn{background:transparent;border:1px solid var(--rule);color:var(--ink);
+    width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+    cursor:pointer;font-size:16px;padding:0}
+
+  .warnbox{margin:24px 0 0;padding:16px 18px;border-left:3px solid var(--warn);
+    background:var(--card);font-size:14.5px;max-width:68ch}
+
+  .panel{margin:24px 0 0;border:1px solid var(--ink);background:var(--card)}
+  .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;padding:18px}
+  .f label{display:block;font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:5px}
+  .f b{font-family:"IBM Plex Mono",monospace;font-size:16px;font-weight:600}
+  .f .hint{font-size:11.5px;color:var(--ink-soft);margin-top:3px}
+  input[type=range]{width:100%;accent-color:var(--accent);margin-top:4px}
+  .runrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+    padding:16px 18px 18px;border-top:1px solid var(--rule)}
+  button{font-family:inherit;font-size:15px;font-weight:600;padding:11px 20px;
+    border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer;border-radius:0}
+  button.ghost{background:transparent;color:var(--ink)}
+  button:disabled{opacity:.45}
+  button:focus-visible{outline:2px solid var(--fail);outline-offset:2px}
+  .runrow label{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:600;cursor:pointer}
+  .runrow input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent);cursor:pointer}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--ink-soft);display:inline-block}
+  .dot.live{background:var(--pass)}
+  .dot.dead{background:var(--fail)}
+  .runrow span{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--ink-soft)}
+
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;
+    margin:24px 0 0;background:var(--rule);border:1px solid var(--rule)}
+  .cards div{background:var(--card);padding:14px 16px}
+  .cards .k{font-size:12px;color:var(--ink-soft)}
+  .cards .v{font-family:"IBM Plex Mono",monospace;font-size:24px;font-weight:600;margin-top:2px;line-height:1.15}
+
+  h2.sec{margin:34px 0 0;font-size:19px}
+  .subtle{margin:4px 0 0;font-size:14px;color:var(--ink-soft);max-width:62ch}
+
+  table{width:100%;border-collapse:collapse;margin:16px 0 0;font-size:14px}
+  th{text-align:left;font-size:12.5px;font-weight:600;color:var(--ink-soft);
+    padding:0 8px 8px 0;border-bottom:1px solid var(--ink);white-space:nowrap}
+  th.n,td.n{text-align:right;padding-right:0}
+  td{padding:10px 8px 10px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+  td.n{font-family:"IBM Plex Mono",monospace;white-space:nowrap}
+  .sym{font-weight:600}
+  .sym a{color:var(--ink);text-underline-offset:2px}
+  .name{display:block;font-size:12.5px;color:var(--ink-soft);margin-top:2px;
+    max-width:32ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .acts a{font-size:12.5px;color:var(--ink);margin-right:10px;text-underline-offset:2px}
+  .up{color:var(--pass)} .down{color:var(--fail)}
+  tr.alive td{background:var(--hot)}
+  .flare{display:inline-block;font-size:11px;font-weight:600;color:var(--paper);
+    background:var(--pass);padding:1px 7px;margin-left:6px;vertical-align:1px}
+
+  .feed{margin:16px 0 0;max-height:320px;overflow-y:auto;border:1px solid var(--rule);
+    background:var(--card);font-family:"IBM Plex Mono",monospace;font-size:12.5px}
+  .feed div{padding:6px 12px;border-bottom:1px solid var(--rule);color:var(--ink-soft);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .feed b{color:var(--ink)}
+
+  .empty{margin:16px 0 0;padding:18px 20px;border:1px solid var(--rule);
+    background:var(--card);color:var(--ink-soft);font-size:15px;max-width:64ch}
+  .note{margin:40px 0 0;padding-top:20px;border-top:1px solid var(--rule);
+    font-size:14px;color:var(--ink-soft);max-width:66ch}
+  .hidden{display:none!important}
+  @media (max-width:720px){ .hide-s{display:none} .topbar{position:static;margin-top:14px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="topbar"><button class="icon-btn" id="theme" title="Dark mode">◐</button></div>
+  <h1>Firehose</h1>
+  <p class="standfirst">Connects to the live pump.fun creation stream and sees every token the moment it is minted. It does not show them to you then — it holds each one, waits, and lists only those still alive with real liquidity once they reach the age you set.</p>
+  <nav>
+    <a href="./">Autopsy</a>
+    <a href="./scan.html">Live scan</a>
+    <a href="./pulse.html">Pulse</a>
+    <a href="./whales.html">Whale watch</a>
+    <a href="./journal.html">Journal</a>
+  </nav>
+</header>
+
+<div class="warnbox">
+  At the moment of creation a token has no holders, no liquidity history and no distribution — there is nothing to evaluate, which is why nothing here is shown until it has survived. Waiting costs you the first minutes of any move. That is the trade you are making deliberately, because those first minutes belong to bots you cannot outrun.
+</div>
+
+<div class="panel">
+  <div class="filters">
+    <div class="f">
+      <label for="wait">Show after surviving</label>
+      <b id="waitv">15m</b>
+      <input type="range" id="wait" min="0" max="5" value="2" step="1">
+      <div class="hint">how long a token must last before it appears</div>
+    </div>
+    <div class="f">
+      <label for="pool">Minimum pool when checked</label>
+      <b id="poolv">$15K</b>
+      <input type="range" id="pool" min="0" max="5" value="2" step="1">
+      <div class="hint">most launches never reach any of these</div>
+    </div>
+  </div>
+  <div class="runrow">
+    <button id="go">Connect</button>
+    <button id="stop" class="ghost hidden">Disconnect</button>
+    <label><input type="checkbox" id="alerts"> Alert on survivors</label>
+    <span><span class="dot" id="dot"></span> <span id="status">offline</span></span>
+  </div>
+</div>
+
+<div class="cards">
+  <div><div class="k">Launches seen</div><div class="v" id="c-seen">0</div></div>
+  <div><div class="k">Waiting</div><div class="v" id="c-wait">0</div></div>
+  <div><div class="k">Checked</div><div class="v" id="c-check">0</div></div>
+  <div><div class="k">Survived</div><div class="v" id="c-alive">0</div></div>
+  <div><div class="k">Survival rate</div><div class="v" id="c-rate">—</div></div>
+</div>
+
+<h2 class="sec">Survivors</h2>
+<p class="subtle">Still trading with a real pool after the wait. This is the only list here worth acting on, and it will be short.</p>
+<div id="none" class="empty">Nothing has survived yet. Give it one full wait period.</div>
+<table id="tbl" class="hidden">
+  <thead><tr>
+    <th>Token</th>
+    <th class="n">Pool</th>
+    <th class="n hide-s">Max buy</th>
+    <th class="n hide-s">5m</th>
+    <th class="n">Age</th>
+    <th class="hide-s">Open</th>
+  </tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<h2 class="sec">Raw stream</h2>
+<p class="subtle">Every creation as it happens. Watch this for a minute and the base rate stops being an abstraction.</p>
+<div class="feed" id="feed"></div>
+
+<p class="note">Survival is not quality. A token with liquidity after twenty minutes has merely cleared the lowest bar there is — run it through the full checks before it becomes a position, and size it as if it will go to zero, because most of these still do. Nothing here is financial advice.</p>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmtUsd = n => n == null ? "—" : "$" + (n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toFixed(0));
+const ageStr = ms => { const m = ms/6e4;
+  return m < 60 ? Math.round(m)+"m" : (m/60).toFixed(1)+"h"; };
+
+const LS = {
+  get(k,d){ try{ const v=localStorage.getItem("fire."+k); return v?JSON.parse(v):d; }catch(e){ return d; } },
+  set(k,v){ try{ localStorage.setItem("fire."+k, JSON.stringify(v)); }catch(e){} }
+};
+let theme = LS.get("theme","light");
+function applyTheme(){ document.body.classList.toggle("dark", theme==="dark"); LS.set("theme",theme); }
+applyTheme();
+$("theme").onclick = () => { theme = theme==="dark"?"light":"dark"; applyTheme(); };
+
+const WAITS = [5, 10, 15, 30, 60, 120], WAIT_L = ["5m","10m","15m","30m","1h","2h"];
+const POOLS = [0, 5e3, 15e3, 30e3, 60e3, 1e5];
+
+function cfg(){ return { waitMin: WAITS[+$("wait").value], minPool: POOLS[+$("pool").value] }; }
+function paint(){
+  $("waitv").textContent = WAIT_L[+$("wait").value];
+  const p = POOLS[+$("pool").value];
+  $("poolv").textContent = p === 0 ? "any" : fmtUsd(p);
+}
+["wait","pool"].forEach(id => $(id).addEventListener("input", paint));
+paint();
+
+let ws = null, seen = 0, checked = 0;
+const pending = new Map();   // mint -> {sym, name, born}
+const alive = new Map();     // mint -> {sym, name, born, liq, m5}
+
+function feedLine(sym, name, mint){
+  const d = document.createElement("div");
+  const t = new Date().toLocaleTimeString();
+  d.innerHTML = `${t} · <b>${sym || "?"}</b> ${name ? "· " + name : ""} · ${mint.slice(0,4)}…${mint.slice(-4)}`;
+  $("feed").prepend(d);
+  while ($("feed").childElementCount > 120) $("feed").lastElementChild.remove();
+}
+
+function stats(){
+  $("c-seen").textContent  = seen;
+  $("c-wait").textContent  = pending.size;
+  $("c-check").textContent = checked;
+  $("c-alive").textContent = alive.size;
+  $("c-rate").textContent  = checked ? (alive.size / checked * 100).toFixed(1) + "%" : "—";
+}
+
+function beep(){
+  if (!$("alerts").checked) return;
+  try {
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.value = 620; g.gain.value = 0.05;
+    o.start(); setTimeout(()=>{o.stop(); ctx.close();}, 170);
+  } catch(e){}
+}
+
+function connect(){
+  try { ws = new WebSocket("wss://pumpportal.fun/api/data"); }
+  catch(e){ $("status").textContent = "could not open socket"; return; }
+
+  ws.onopen = () => {
+    $("dot").className = "dot live";
+    $("status").textContent = "listening";
+    ws.send(JSON.stringify({method:"subscribeNewToken"}));
+  };
+  ws.onmessage = ev => {
+    let d; try { d = JSON.parse(ev.data); } catch(e){ return; }
+    const mint = d.mint || d.tokenAddress || d.ca;
+    if (!mint) return;
+    if (pending.has(mint) || alive.has(mint)) return;
+    seen++;
+    const sym = d.symbol || d.ticker || "?";
+    const name = d.name || "";
+    pending.set(mint, {sym, name, born: Date.now()});
+    feedLine(sym, name, mint);
+    stats();
+  };
+  ws.onclose = () => {
+    $("dot").className = "dot dead";
+    $("status").textContent = "disconnected";
+    if (ws) setTimeout(() => { if (ws) connect(); }, 4000);
+  };
+  ws.onerror = () => { $("status").textContent = "socket error — retrying"; };
+}
+
+/* every 30s, check the ones that have finished waiting */
+async function sweep(){
+  const {waitMin, minPool} = cfg();
+  const due = [...pending.entries()]
+    .filter(([,v]) => Date.now() - v.born >= waitMin * 6e4)
+    .slice(0, 30);
+  if (!due.length) return;
+
+  const mints = due.map(([m]) => m);
+  let pairs = [];
+  try {
+    const r = await fetch("https://api.dexscreener.com/latest/dex/tokens/" + mints.join(","));
+    if (r.ok){ const j = await r.json(); pairs = j.pairs || []; }
+  } catch(e){ return; }
+
+  const best = new Map();
+  for (const p of pairs){
+    const k = p.baseToken?.address;
+    if (!k) continue;
+    const cur = best.get(k);
+    if (!cur || (p.liquidity?.usd||0) > (cur.liquidity?.usd||0)) best.set(k, p);
+  }
+
+  for (const [mint, info] of due){
+    pending.delete(mint);
+    checked++;
+    const p = best.get(mint);
+    const liq = p?.liquidity?.usd ?? 0;
+    if (p && liq >= minPool){
+      alive.set(mint, {...info, liq, m5: p.priceChange?.m5 ?? 0});
+      beep();
+      if (window.Notification && Notification.permission === "granted" && $("alerts").checked){
+        new Notification(info.sym + " survived", {body: `pool ${fmtUsd(liq)} after ${cfg().waitMin}m`});
+      }
+    }
+  }
+  stats();
+  renderAlive();
+}
+
+function renderAlive(){
+  const rows = [...alive.entries()].sort((a,b) => b[1].liq - a[1].liq);
+  $("tbl").classList.toggle("hidden", !rows.length);
+  $("none").classList.toggle("hidden", !!rows.length);
+  $("rows").innerHTML = rows.map(([mint, v]) => `
+    <tr class="alive">
+      <td><span class="sym"><a href="./?a=${mint}">${v.sym}</a></span>
+          <span class="name">${v.name || ""}</span></td>
+      <td class="n">${fmtUsd(v.liq)}</td>
+      <td class="n hide-s">${fmtUsd(v.liq * 0.01)}</td>
+      <td class="n hide-s ${v.m5>=0?"up":"down"}">${v.m5>0?"+":""}${v.m5.toFixed(0)}%</td>
+      <td class="n">${ageStr(Date.now() - v.born)}</td>
+      <td class="hide-s acts">
+        <a href="./?a=${mint}">checks</a>
+        <a href="https://rugcheck.xyz/tokens/${mint}" target="_blank" rel="noopener">rug</a>
+        <a href="./whales.html?a=${mint}">whales</a>
+      </td>
+    </tr>`).join("");
+}
+
+let sweeper = null;
+$("go").onclick = () => {
+  connect();
+  sweeper = setInterval(sweep, 30000);
+  $("go").disabled = true;
+  $("stop").classList.remove("hidden");
+};
+$("stop").onclick = () => {
+  const sock = ws; ws = null;
+  if (sock) sock.close();
+  clearInterval(sweeper);
+  $("dot").className = "dot";
+  $("status").textContent = "offline";
+  $("go").disabled = false;
+  $("stop").classList.add("hidden");
+};
+$("alerts").addEventListener("change", e => {
+  if (e.target.checked && window.Notification && Notification.permission === "default")
+    Notification.requestPermission();
+});
+setInterval(renderAlive, 20000);
+</script>
+</body>
+</html>
