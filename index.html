@@ -174,6 +174,7 @@
 <header>
   <h1>Token autopsy</h1>
   <p class="standfirst">Paste a Solana mint address. This runs the structural checks that are readable before you buy — authorities, liquidity depth, holder concentration, volume sanity — and shows the numbers behind each verdict.</p>
+  <p style="margin:14px 0 0;font-size:14.5px"><a href="./scan.html" style="color:var(--ink);text-underline-offset:3px">Scan the promoted list →</a></p>
 </header>
 
 <div class="console">
@@ -570,6 +571,10 @@ async function run(){
 $("go").addEventListener("click", run);
 $("addr").addEventListener("keydown", e => { if (e.key === "Enter") run(); });
 $("demo").addEventListener("click", () => { $("addr").value = $("demo").textContent; run(); });
+
+// arrive from the promoted-list scanner with ?a=<mint>
+const fromUrl = new URLSearchParams(location.search).get("a");
+if (fromUrl){ $("addr").value = fromUrl; run(); }
 </script>
 </body>
 </html>
