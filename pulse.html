@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse — momentum on young tokens</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#EDEFF1; --ink:#14222B; --ink-soft:#54666F; --rule:#CED5DA;
+    --card:#F7F8F9; --fail:#A33326; --warn:#9A6B10; --pass:#2C6A52; --void:#0D181E;
+    box-sizing:border-box;
+  }
+  *,*::before,*::after{box-sizing:inherit}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.55;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin:0 auto;padding:0 20px 90px}
+  header{padding:48px 0 18px}
+  h1{font-size:clamp(32px,6vw,46px);line-height:1.03;font-weight:700;letter-spacing:-.025em;margin:0 0 12px}
+  .standfirst{margin:0;max-width:60ch;color:var(--ink-soft);font-size:17px}
+  nav{margin:16px 0 0;font-size:14.5px}
+  nav a{color:var(--ink);text-underline-offset:3px;margin-right:18px}
+
+  .warnbox{margin:24px 0 0;padding:16px 18px;border-left:3px solid var(--warn);
+    background:var(--card);font-size:14.5px;max-width:64ch}
+
+  .panel{margin:24px 0 0;border:1px solid var(--ink);background:var(--card)}
+  .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px;padding:18px}
+  .f label{display:block;font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:5px}
+  .f b{font-family:"IBM Plex Mono",monospace;font-size:16px;font-weight:600}
+  input[type=range]{width:100%;accent-color:var(--ink);margin-top:4px}
+  .runrow{display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+    padding:16px 18px 18px;border-top:1px solid var(--rule)}
+  button{font-family:inherit;font-size:15px;font-weight:600;padding:11px 20px;
+    border:1px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer;border-radius:0}
+  button.ghost{background:transparent;color:var(--ink)}
+  button:disabled{opacity:.45;cursor:progress}
+  button:focus-visible{outline:2px solid var(--fail);outline-offset:2px}
+  .runrow span{font-family:"IBM Plex Mono",monospace;font-size:13px;color:var(--ink-soft)}
+  .runrow label{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:600;cursor:pointer}
+  .runrow input[type=checkbox]{width:16px;height:16px;accent-color:var(--ink);cursor:pointer}
+
+  table{width:100%;border-collapse:collapse;margin:26px 0 0;font-size:14.5px}
+  th{text-align:left;font-size:13px;font-weight:600;color:var(--ink-soft);
+    padding:0 10px 8px 0;border-bottom:1px solid var(--ink)}
+  th.n,td.n{text-align:right;padding-right:0}
+  td{padding:11px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+  td:first-child{padding-left:0}
+  td.n{font-family:"IBM Plex Mono",monospace;white-space:nowrap}
+  .sym{font-weight:600}
+  .sym a{color:var(--ink);text-underline-offset:2px}
+  .tags{display:block;font-size:12.5px;color:var(--ink-soft);margin-top:3px}
+  .up{color:var(--pass)} .down{color:var(--fail)}
+  tr.hot td{background:#F0F5F2}
+  .flare{display:inline-block;font-size:11px;font-weight:600;color:var(--paper);
+    background:var(--pass);padding:1px 7px;margin-left:8px;vertical-align:1px}
+  .empty{margin:24px 0 0;padding:18px 20px;border:1px solid var(--rule);background:var(--card);
+    font-size:15px;color:var(--ink-soft);max-width:62ch}
+  .note{margin:40px 0 0;padding-top:20px;border-top:1px solid var(--rule);
+    font-size:14px;color:var(--ink-soft);max-width:64ch}
+  .hidden{display:none}
+  @media (max-width:640px){ .hide-s{display:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Pulse</h1>
+  <p class="standfirst">Tracks young Solana tokens every 20 seconds and flags the ones where price and pool are climbing together. Fast, because it reads price data only — run anything it surfaces through the full checks before acting.</p>
+  <nav><a href="./">Autopsy</a><a href="./scan.html">Live scan</a></nav>
+</header>
+
+<div class="warnbox">
+  This finds tokens already in motion. A climb that is real and a climb that is insiders distributing look identical while they are happening — the difference only becomes visible afterwards. Treat every row as something to investigate, never as a signal to buy.
+</div>
+
+<div class="panel">
+  <div class="filters">
+    <div class="f">
+      <label for="age">Maximum age</label>
+      <b id="agev">6h</b>
+      <input type="range" id="age" min="0" max="5" value="3" step="1">
+    </div>
+    <div class="f">
+      <label for="pool">Minimum pool</label>
+      <b id="poolv">$15K</b>
+      <input type="range" id="pool" min="0" max="6" value="2" step="1">
+    </div>
+    <div class="f">
+      <label for="mom">5-minute move above</label>
+      <b id="momv">+5%</b>
+      <input type="range" id="mom" min="0" max="6" value="1" step="1">
+    </div>
+  </div>
+  <div class="runrow">
+    <button id="go">Start pulse</button>
+    <button id="stop" class="ghost hidden">Stop</button>
+    <label><input type="checkbox" id="alerts"> Alert me</label>
+    <span id="ticker">idle</span>
+  </div>
+</div>
+
+<div id="empty" class="empty hidden"></div>
+
+<table id="tbl" class="hidden">
+  <thead><tr>
+    <th>Token</th>
+    <th class="n">5m</th>
+    <th class="n hide-s">1h</th>
+    <th class="n">Pool</th>
+    <th class="n hide-s">Pool Δ</th>
+    <th class="n hide-s">Age</th>
+  </tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+
+<p class="note">Momentum is not prediction. Everything here is already moving, which means you are never early — you are deciding whether to join something in progress. Size for a total loss and write your exit before you enter. Nothing here is financial advice.</p>
+
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const fmtUsd = n => n == null ? "—" : "$" + (n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1e3 ? (n/1e3).toFixed(1)+"K" : n.toFixed(0));
+const ageStr = ms => { if (ms == null) return "—"; const h = ms/36e5;
+  return h < 1 ? Math.round(h*60)+"m" : h < 48 ? h.toFixed(0)+"h" : Math.round(h/24)+"d"; };
+
+const AGES = [1, 3, 6, 12, 24, 1e5], AGE_L = ["1h","3h","6h","12h","24h","any"];
+const POOLS = [0, 5e3, 15e3, 30e3, 60e3, 1e5, 25e4];
+const MOMS = [2, 5, 10, 20, 35, 50, 100];
+
+function filters(){
+  return { maxAgeH: AGES[+$("age").value], minPool: POOLS[+$("pool").value], minM5: MOMS[+$("mom").value] };
+}
+function paint(){
+  $("agev").textContent = AGE_L[+$("age").value];
+  const p = POOLS[+$("pool").value];
+  $("poolv").textContent = p === 0 ? "any" : fmtUsd(p);
+  $("momv").textContent = "+" + MOMS[+$("mom").value] + "%";
+}
+["age","pool","mom"].forEach(id => $(id).addEventListener("input", paint));
+paint();
+
+async function getJson(url){
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+// candidate pool, refreshed occasionally — the promoted and profiled feeds
+let candidates = [], lastRefresh = 0;
+async function refreshCandidates(){
+  if (Date.now() - lastRefresh < 180000 && candidates.length) return;
+  const set = [];
+  for (const url of [
+    "https://api.dexscreener.com/token-boosts/latest/v1",
+    "https://api.dexscreener.com/token-profiles/latest/v1",
+    "https://api.dexscreener.com/token-boosts/top/v1"
+  ]){
+    try {
+      const list = await getJson(url);
+      for (const t of (Array.isArray(list) ? list : [])){
+        if (t.chainId === "solana" && t.tokenAddress && !set.includes(t.tokenAddress)) set.push(t.tokenAddress);
+      }
+    } catch(e){}
+  }
+  if (set.length){ candidates = set.slice(0, 90); lastRefresh = Date.now(); }
+}
+
+// DexScreener takes up to 30 comma-separated addresses per call — that is the speed
+async function pairsFor(mints){
+  const out = [];
+  for (let i = 0; i < mints.length; i += 30){
+    const chunk = mints.slice(i, i+30).join(",");
+    try {
+      const d = await getJson("https://api.dexscreener.com/latest/dex/tokens/" + chunk);
+      for (const p of (d.pairs || [])) if (p.chainId === "solana") out.push(p);
+    } catch(e){}
+    await sleep(250);
+  }
+  // keep the deepest pair per token
+  const best = new Map();
+  for (const p of out){
+    const k = p.baseToken?.address;
+    if (!k) continue;
+    const cur = best.get(k);
+    if (!cur || (p.liquidity?.usd||0) > (cur.liquidity?.usd||0)) best.set(k, p);
+  }
+  return [...best.values()];
+}
+
+const history = new Map();   // mint -> {liq, firstSeen}
+const alerted = new Set();
+let running = false;
+
+function beep(){
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.value = 660; g.gain.value = 0.06;
+    o.start(); setTimeout(() => { o.stop(); ctx.close(); }, 180);
+  } catch(e){}
+}
+
+function notify(r){
+  if (!$("alerts").checked) return;
+  beep();
+  if (window.Notification && Notification.permission === "granted"){
+    new Notification(r.sym + " is moving", {
+      body: `5m ${r.m5>0?"+":""}${r.m5.toFixed(0)}% · pool ${fmtUsd(r.liq)} · ${ageStr(r.age)} old`
+    });
+  }
+}
+
+async function pass(){
+  const f = filters();
+  await refreshCandidates();
+  if (!candidates.length){ $("ticker").textContent = "feed unavailable — retrying"; return; }
+
+  $("ticker").textContent = "reading…";
+  const pairs = await pairsFor(candidates);
+  const now = Date.now();
+  const rows = [];
+
+  for (const p of pairs){
+    const mint = p.baseToken.address;
+    const liq = p.liquidity?.usd ?? 0;
+    const age = p.pairCreatedAt ? now - p.pairCreatedAt : null;
+    const ageH = age != null ? age/36e5 : null;
+    const m5 = p.priceChange?.m5 ?? 0;
+    const h1 = p.priceChange?.h1 ?? 0;
+
+    const prev = history.get(mint);
+    const poolDelta = prev ? (liq - prev.liq) / (prev.liq || 1) * 100 : null;
+    history.set(mint, {liq, firstSeen: prev?.firstSeen || now});
+
+    if (ageH != null && ageH > f.maxAgeH) continue;
+    if (liq < f.minPool) continue;
+    if (m5 < f.minM5) continue;
+
+    // the shape worth noticing: price up, pool not shrinking, move sustained beyond one candle
+    const sustained = h1 > 0;
+    const poolHolding = poolDelta == null || poolDelta > -3;
+    rows.push({mint, sym: p.baseToken.symbol || "?", liq, age, m5, h1, poolDelta, sustained, poolHolding});
+  }
+
+  rows.sort((a,b) => b.m5 - a.m5);
+
+  if (!rows.length){
+    $("tbl").classList.add("hidden");
+    $("empty").classList.remove("hidden");
+    $("empty").textContent = "Nothing is moving that meets your filters. Lower the 5-minute threshold or widen the age to see more — a quiet screen is a normal screen.";
+  } else {
+    $("empty").classList.add("hidden");
+    $("tbl").classList.remove("hidden");
+    $("rows").innerHTML = rows.map(r => {
+      const hot = r.sustained && r.poolHolding && r.m5 >= f.minM5 * 2;
+      const tags = [];
+      if (r.sustained) tags.push("hour up too");
+      else tags.push("single spike");
+      if (r.poolDelta != null) tags.push(r.poolDelta >= 0 ? "pool growing" : "pool shrinking");
+      if (hot && !alerted.has(r.mint)){ alerted.add(r.mint); notify(r); }
+      return `<tr class="${hot ? "hot" : ""}">
+        <td><span class="sym"><a href="./?a=${r.mint}">${r.sym}</a></span>${hot ? '<span class="flare">check it</span>' : ""}
+            <span class="tags">${tags.join(" · ")}</span></td>
+        <td class="n up">+${r.m5.toFixed(0)}%</td>
+        <td class="n hide-s ${r.h1>=0?"up":"down"}">${r.h1>0?"+":""}${r.h1.toFixed(0)}%</td>
+        <td class="n">${fmtUsd(r.liq)}</td>
+        <td class="n hide-s ${r.poolDelta==null?"":r.poolDelta>=0?"up":"down"}">${r.poolDelta==null?"—":(r.poolDelta>0?"+":"")+r.poolDelta.toFixed(1)+"%"}</td>
+        <td class="n hide-s">${ageStr(r.age)}</td>
+      </tr>`;
+    }).join("");
+  }
+  $("ticker").textContent = rows.length + " moving · " + new Date().toLocaleTimeString();
+}
+
+async function loop(){
+  while (running){
+    await pass();
+    for (let i = 0; i < 20 && running; i++) await sleep(1000);
+  }
+}
+
+$("alerts").addEventListener("change", e => {
+  if (e.target.checked && window.Notification && Notification.permission === "default"){
+    Notification.requestPermission();
+  }
+});
+$("go").addEventListener("click", () => {
+  running = true; alerted.clear();
+  $("go").disabled = true; $("stop").classList.remove("hidden");
+  loop();
+});
+$("stop").addEventListener("click", () => {
+  running = false;
+  $("go").disabled = false; $("stop").classList.add("hidden");
+  $("ticker").textContent = "stopped";
+});
+</script>
+</body>
+</html>
