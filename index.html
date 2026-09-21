@@ -132,6 +132,21 @@
   .frame iframe{width:100%;height:100%;border:0;display:block}
   @media (max-width:560px){ .frame{height:300px} .move b{font-size:15px} }
 
+  /* ---------- holders ---------- */
+  .blockhead{margin:34px 0 10px;font-size:17px}
+  .holders{width:100%;border-collapse:collapse;font-size:14px}
+  .holders td{padding:9px 0;border-bottom:1px solid var(--rule);vertical-align:middle}
+  .holders .who{font-family:"IBM Plex Mono",monospace}
+  .holders .who a{color:var(--ink);text-underline-offset:2px}
+  .holders .lbl{font-family:"IBM Plex Sans",sans-serif;font-size:12px;color:var(--ink-soft);margin-left:8px}
+  .holders .amt{text-align:right;font-family:"IBM Plex Mono",monospace;font-weight:500;white-space:nowrap;width:64px}
+  .holders .bar{width:38%;padding-left:14px}
+  .holders .bar i{display:block;height:7px;background:var(--ink)}
+  .holders tr.pool .bar i{background:var(--rule)}
+  .holders tr.pool .who a{color:var(--ink-soft)}
+  .holders tr.risky .bar i{background:var(--fail)}
+  .fineprint{margin:12px 0 0;font-size:13.5px;color:var(--ink-soft);max-width:62ch}
+
   /* ---------- sizing ---------- */
   .sizing{margin:34px 0 0;padding:20px 22px;border:1px solid var(--rule);background:var(--card)}
   .sizing h3{margin:0 0 8px;font-size:17px}
@@ -190,6 +205,12 @@
   <div id="chartblock" class="hidden">
     <div class="moves" id="moves"></div>
     <div class="frame"><iframe id="chart" title="Live price chart" loading="lazy"></iframe></div>
+  </div>
+
+  <div id="holderblock" class="hidden">
+    <h3 class="blockhead">Who holds it</h3>
+    <table class="holders"><tbody id="holders"></tbody></table>
+    <p class="fineprint" id="holdernote"></p>
   </div>
 
   <div class="sizing">
@@ -435,6 +456,35 @@ function render(mint, dex, rug){
     $("chartblock").classList.remove("hidden");
   } else {
     $("chartblock").classList.add("hidden");
+  }
+
+  // who holds it
+  const th = rug?.topHolders;
+  if (Array.isArray(th) && th.length){
+    const known = rug.knownAccounts || {};
+    const rows = th.slice(0, 15).map((h, i) => {
+      const owner = h.owner || h.address || "";
+      const p = h.pct || 0;
+      const meta = known[owner] || {};
+      const isPool = h.insider === false && p > 40 || /amm|market|liquidity|pool/i.test(meta.type || meta.name || "");
+      const label = meta.name || (isPool ? "liquidity pool" : h.insider ? "flagged insider" : "");
+      const cls = isPool ? "pool" : (h.insider || p > 5) ? "risky" : "";
+      const short = owner.slice(0,4) + "…" + owner.slice(-4);
+      return `<tr class="${cls}">
+        <td class="who"><a href="https://solscan.io/account/${owner}" target="_blank" rel="noopener">${short}</a>${label ? `<span class="lbl">${label}</span>` : ""}</td>
+        <td class="bar"><i style="width:${Math.min(100, p * 2)}%"></i></td>
+        <td class="amt">${p.toFixed(2)}%</td>
+      </tr>`;
+    }).join("");
+    $("holders").innerHTML = rows;
+
+    const nonPool = th.filter(h => (h.pct || 0) < 40);
+    const top10 = nonPool.slice(0,10).reduce((s,h) => s + (h.pct||0), 0);
+    $("holdernote").textContent = "Top 10 wallets outside the pool hold " + top10.toFixed(1) +
+      "%. Click any address to see its history on Solscan — a wallet funded hours before launch, or one sending tokens back to the pool, is selling.";
+    $("holderblock").classList.remove("hidden");
+  } else {
+    $("holderblock").classList.add("hidden");
   }
 
   if (liq){
