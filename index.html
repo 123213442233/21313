@@ -121,6 +121,17 @@
   .is-pass .mark,.is-pass .readout{color:var(--pass)}
   .is-skip .mark,.is-skip .readout{color:var(--ink-soft)}
 
+  /* ---------- chart ---------- */
+  .moves{display:flex;gap:1px;margin:30px 0 0;background:var(--rule);border:1px solid var(--rule)}
+  .move{flex:1;background:var(--card);padding:12px 10px;min-width:0}
+  .move span{display:block;font-size:12.5px;color:var(--ink-soft)}
+  .move b{font-family:"IBM Plex Mono",monospace;font-size:17px;font-weight:600;display:block;margin-top:2px}
+  .move.up b{color:var(--pass)}
+  .move.down b{color:var(--fail)}
+  .frame{margin:14px 0 0;border:1px solid var(--rule);background:var(--card);height:420px}
+  .frame iframe{width:100%;height:100%;border:0;display:block}
+  @media (max-width:560px){ .frame{height:300px} .move b{font-size:15px} }
+
   /* ---------- sizing ---------- */
   .sizing{margin:34px 0 0;padding:20px 22px;border:1px solid var(--rule);background:var(--card)}
   .sizing h3{margin:0 0 8px;font-size:17px}
@@ -175,6 +186,11 @@
   </div>
 
   <div class="checks" id="checks"></div>
+
+  <div id="chartblock" class="hidden">
+    <div class="moves" id="moves"></div>
+    <div class="frame"><iframe id="chart" title="Live price chart" loading="lazy"></iframe></div>
+  </div>
 
   <div class="sizing">
     <h3>Position ceiling</h3>
@@ -369,8 +385,7 @@ function buildChecks(dex, rug){
 }
 
 function render(mint, dex, rug){
-  const {checks, age, liq} = buildChecks(dex, rug);
-  const fails = checks.filter(c => c.state==="fail").length;
+  const {checks, age, liq} = buildChecks(dex, rug);  const fails = checks.filter(c => c.state==="fail").length;
   const warns = checks.filter(c => c.state==="warn").length;
   const passes = checks.filter(c => c.state==="pass").length;
   const skips = checks.filter(c => c.state==="skip").length;
@@ -405,6 +420,22 @@ function render(mint, dex, rug){
       <div><h3>${c.title}</h3><p>${c.note}</p></div>
       <span class="readout">${c.readout}</span>
     </div>`).join("");
+
+  // price movement + live chart, both from the DexScreener pair
+  const ch = dex?.priceChange;
+  if (dex?.pairAddress && ch){
+    const windows = [["5m",ch.m5],["1h",ch.h1],["6h",ch.h6],["24h",ch.h24]];
+    $("moves").innerHTML = windows.map(([label,v]) => {
+      const dir = v > 0 ? "up" : v < 0 ? "down" : "";
+      const shown = v == null ? "—" : (v > 0 ? "+" : "") + v.toFixed(1) + "%";
+      return `<div class="move ${dir}"><span>${label}</span><b>${shown}</b></div>`;
+    }).join("");
+    $("chart").src = "https://dexscreener.com/solana/" + dex.pairAddress +
+      "?embed=1&theme=light&trades=0&info=0&chartLeftToolbar=0";
+    $("chartblock").classList.remove("hidden");
+  } else {
+    $("chartblock").classList.add("hidden");
+  }
 
   if (liq){
     $("size").textContent = fmtUsd(liq * 0.01);
