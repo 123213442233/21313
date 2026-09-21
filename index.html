@@ -169,6 +169,7 @@
       <div>failed<b id="t-fail">0</b></div>
       <div>warnings<b id="t-warn">0</b></div>
       <div>passed<b id="t-pass">0</b></div>
+      <div>no data<b id="t-skip">0</b></div>
       <div>age<b id="t-age">—</b></div>
     </div>
   </div>
@@ -236,8 +237,10 @@ async function fetchDex(mint){
     return null;
   }
   status.dex = "";
-  // deepest pool is the one that matters for exiting
-  return pairs.sort((a,b) => (b.liquidity?.usd||0) - (a.liquidity?.usd||0))[0];
+  // prefer the deepest pool that actually reports liquidity; fall back to the first pair
+  const withLiq = pairs.filter(p => p.liquidity?.usd > 0);
+  const ranked = (withLiq.length ? withLiq : pairs).sort((a,b) => (b.liquidity?.usd||0) - (a.liquidity?.usd||0));
+  return ranked[0];
 }
 
 async function fetchRug(mint){
@@ -282,24 +285,30 @@ function buildChecks(dex, rug){
     }
   }
 
-  // 3. absolute liquidity
-  const liq = dex?.liquidity?.usd;
+  // 3. absolute liquidity — fall back to RugCheck if DexScreener omits it
+  const liq = dex?.liquidity?.usd ?? rug?.totalMarketLiquidity ?? null;
   if (liq != null){
     add(liq >= 1e5 ? "pass" : liq >= 3e4 ? "warn" : "fail", "Pool depth",
         fmtUsd(liq),
         liq >= 1e5 ? "Deep enough to exit a normal position calmly."
         : liq >= 3e4 ? "Thin. Exits will cost you, and the pool can halve in minutes."
         : "Below any workable floor — there is no real exit here at size.");
+  } else {
+    add("skip", "Pool depth", "unknown",
+        "Neither source reported pool size. This is the check that matters most — open DexScreener below before going further.");
   }
 
   // 4. liquidity vs market cap
-  const mcap = dex?.marketCap || dex?.fdv;
+  const mcap = dex?.marketCap || dex?.fdv || null;
   if (liq != null && mcap){
     const ratio = liq / mcap * 100;
     add(ratio >= 10 ? "pass" : ratio >= 5 ? "warn" : "fail", "Pool vs market cap",
         pct(ratio),
         ratio >= 10 ? "The valuation is backed by real depth."
                     : "The price on screen is mostly notional — nobody can sell into it at that number.");
+  } else {
+    add("skip", "Pool vs market cap", "unknown",
+        "Cannot compare depth to valuation without both numbers.");
   }
 
   // 5. volume vs market cap — the RSOLVE tell
@@ -364,15 +373,18 @@ function render(mint, dex, rug){
   const fails = checks.filter(c => c.state==="fail").length;
   const warns = checks.filter(c => c.state==="warn").length;
   const passes = checks.filter(c => c.state==="pass").length;
+  const skips = checks.filter(c => c.state==="skip").length;
 
   const name = dex?.baseToken?.name || rug?.tokenMeta?.name || "This token";
   const sym  = dex?.baseToken?.symbol || rug?.tokenMeta?.symbol || "";
 
   let head, tag;
-  if (fails >= 3){ head = "Walk away."; tag = name + (sym ? " · " + sym : ""); }
-  else if (fails >= 1){ head = "Hard fails present."; tag = name + (sym ? " · " + sym : ""); }
-  else if (warns >= 3){ head = "Nothing obviously broken, plenty uncomfortable."; tag = name + (sym ? " · " + sym : ""); }
-  else { head = "Clears the structural checks."; tag = name + (sym ? " · " + sym : ""); }
+  if (fails >= 3){ head = "Walk away."; }
+  else if (fails >= 1){ head = "Hard fails present."; }
+  else if (skips >= 1){ head = "Incomplete — key data missing."; }
+  else if (warns >= 3){ head = "Nothing obviously broken, plenty uncomfortable."; }
+  else { head = "Clears the structural checks."; }
+  tag = name + (sym ? " · " + sym : "");
 
   $("v-tag").textContent = tag;
   $("v-head").textContent = head;
@@ -383,6 +395,7 @@ function render(mint, dex, rug){
   $("t-fail").textContent = fails;
   $("t-warn").textContent = warns;
   $("t-pass").textContent = passes;
+  $("t-skip").textContent = skips;
   $("t-age").textContent = ageString(age);
 
   const marks = {fail:"✕", warn:"!", pass:"✓", skip:"?"};
