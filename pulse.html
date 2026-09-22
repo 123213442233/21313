@@ -219,6 +219,7 @@
     <button id="go">Start pulse</button>
     <button id="stop" class="ghost hidden">Stop</button>
     <label><input type="checkbox" id="alerts"> Alert me</label>
+    <label><input type="checkbox" id="stream" checked> Live launches</label>
     <label><input type="checkbox" id="watch"> Watched only</label>
     <span id="ticker">idle</span>
     <span class="spacer"></span>
@@ -227,6 +228,7 @@
 </div>
 
 <div class="statline">
+  <span>Universe <b id="s-uni">0</b></span>
   <span>Tracked <b id="s-track">0</b></span>
   <span>Moving <b id="s-move">0</b></span>
   <span>Hot <b id="s-hot">0</b></span>
@@ -406,9 +408,35 @@ async function getJson(url){
 }
 
 let candidates = [], lastRefresh = 0;
+const born = new Map();        // mint -> first seen by the socket
+let sock = null;
+
+/* the launch socket: every pump.fun creation, straight into the candidate pool */
+function openSocket(){
+  if (!$("stream").checked || sock) return;
+  try { sock = new WebSocket("wss://pumpportal.fun/api/data"); }
+  catch(e){ return; }
+  sock.onopen = () => { sock.send(JSON.stringify({method:"subscribeNewToken"})); };
+  sock.onmessage = ev => {
+    let d; try { d = JSON.parse(ev.data); } catch(e){ return; }
+    const m = d.mint || d.tokenAddress;
+    if (!m || born.has(m)) return;
+    born.set(m, Date.now());
+    // keep the pool bounded: drop anything older than 6h
+    if (born.size > 1200){
+      const cut = Date.now() - 6*36e5;
+      for (const [k,v] of born) if (v < cut) born.delete(k);
+    }
+  };
+  sock.onclose = () => { sock = null; if ($("stream").checked && running) setTimeout(openSocket, 4000); };
+}
+function closeSocket(){ const s = sock; sock = null; if (s) s.close(); }
+
 async function refreshCandidates(){
   if (Date.now() - lastRefresh < 180000 && candidates.length) return;
-  const set = [];
+  const set = new Set();
+
+  // promoted feeds
   for (const url of [
     "https://api.dexscreener.com/token-boosts/latest/v1",
     "https://api.dexscreener.com/token-profiles/latest/v1",
@@ -416,13 +444,26 @@ async function refreshCandidates(){
   ]){
     try {
       const list = await getJson(url);
-      for (const t of (Array.isArray(list) ? list : [])){
-        if (t.chainId === "solana" && t.tokenAddress && !set.includes(t.tokenAddress))
-          set.push(t.tokenAddress);
-      }
+      for (const t of (Array.isArray(list) ? list : []))
+        if (t.chainId === "solana" && t.tokenAddress) set.add(t.tokenAddress);
     } catch(e){}
   }
-  if (set.length){ candidates = set.slice(0, 90); lastRefresh = Date.now(); }
+
+  // search discovery — pairs nobody paid to promote
+  for (const q of ["pump", "SOL", "fun", "cat", "dog"]){
+    try {
+      const d = await getJson("https://api.dexscreener.com/latest/dex/search?q=" + encodeURIComponent(q));
+      for (const p of (d.pairs || []))
+        if (p.chainId === "solana" && p.baseToken?.address) set.add(p.baseToken.address);
+    } catch(e){}
+    await sleep(200);
+  }
+
+  // live launches, newest first
+  const live = [...born.entries()].sort((a,b) => b[1] - a[1]).map(([m]) => m);
+  for (const m of live.slice(0, 200)) set.add(m);
+
+  if (set.size){ candidates = [...set].slice(0, 300); lastRefresh = Date.now(); }
 }
 
 async function pairsFor(mints){
@@ -480,7 +521,8 @@ async function enrich(mints){
     try {
       const rug = await getJson("https://api.rugcheck.xyz/v1/tokens/" + m + "/report");
       const th = Array.isArray(rug?.topHolders) ? rug.topHolders : [];
-      const top10 = th.filter(h => (h.pct||0) < 40).slice(0,10).reduce((s,h) => s + (h.pct||0), 0);
+      const real = th.filter(h => (h.pct||0) < 40);
+      const top10 = real.length ? real.slice(0,10).reduce((s,h) => s + (h.pct||0), 0) : null;
       // deepest market's lock status, plus authorities
       let lpLocked = null;
       if (Array.isArray(rug?.markets) && rug.markets.length){
@@ -491,8 +533,8 @@ async function enrich(mints){
       }
       conc.set(m, {
         top10,
-        top1: th.filter(h => (h.pct||0) < 40)[0]?.pct ?? null,
-        top100: th.filter(h => (h.pct||0) < 40).slice(0,100).reduce((s,h) => s + (h.pct||0), 0),
+        top1: real[0]?.pct ?? null,
+        top100: real.length ? real.slice(0,100).reduce((s,h) => s + (h.pct||0), 0) : null,
         bars: th.slice(0, 60).map(h => h.pct || 0),
         holders: rug?.totalHolders ?? null,
         lpLocked,
@@ -562,6 +604,7 @@ async function pass(){
     });
   }
 
+  $("s-uni").textContent   = candidates.length + (born.size ? " (" + born.size + " live)" : "");
   $("s-track").textContent = hist.size;
   $("s-move").textContent  = rows.length;
   $("s-hot").textContent   = rows.filter(r => r.hot).length;
@@ -622,8 +665,8 @@ function renderRows(){
 
     if (hot && !alerted.has(r.mint)){ alerted.add(r.mint); notify(r); }
 
-    const concCell = c === "pending" ? "…" : (c === "fail" || top10 == null) ? "—" : top10.toFixed(0) + "%";
-    const concCls = danger ? "down" : caution ? "warnc" : top10 != null ? "up" : "";
+    const concCell = c === "pending" ? "…" : (c === "fail" || top10 == null) ? "?" : top10.toFixed(0) + "%";
+    const concCls = danger ? "down" : caution ? "warnc" : top10 != null ? "up" : "warnc";
 
     return `<tr class="${hot?"hot":""} ${danger?"danger":""} ${watched?"watched":""}">
       <td>
@@ -713,7 +756,7 @@ function openDrawer(mint){
     ["Price", r.price ? "$" + r.price.toPrecision(4) : "—"],
     ["Max buy", r.liq ? fmtUsd(r.liq * 0.01) : "—"],
     ["Top 10 hold", (() => { const c = conc.get(mint);
-      return (c && c !== "pending" && c !== "fail") ? c.top10.toFixed(1) + "%" : "—"; })()],
+      return (c && c !== "pending" && c !== "fail" && c.top10 != null) ? c.top10.toFixed(1) + "%" : "not indexed yet"; })()],
     ["Top 1 hold", (() => { const c = conc.get(mint);
       return (c && c !== "pending" && c !== "fail" && c.top1 != null) ? c.top1.toFixed(2) + "%" : "—"; })()],
     ["Top 100 hold", (() => { const c = conc.get(mint);
@@ -792,13 +835,18 @@ $("alerts").addEventListener("change", e => {
 });
 $("go").addEventListener("click", () => {
   running = true; alerted.clear();
+  openSocket();
   $("go").disabled = true; $("stop").classList.remove("hidden");
   loop();
 });
 $("stop").addEventListener("click", () => {
   running = false;
+  closeSocket();
   $("go").disabled = false; $("stop").classList.add("hidden");
   $("ticker").textContent = "stopped";
+});
+$("stream").addEventListener("change", e => {
+  if (e.target.checked && running) openSocket(); else closeSocket();
 });
 </script>
 </body>
