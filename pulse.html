@@ -111,6 +111,11 @@
   .spark.down path{stroke:var(--fail)}
   .spark.flat path{stroke:var(--ink-soft)}
 
+  .dist{display:block;width:80px;height:22px}
+  .dist rect{fill:var(--ink)}
+  .dist rect.pool{fill:var(--rule)}
+  .dist rect.big{fill:var(--fail)}
+
   .heat{display:inline-block;font-family:"IBM Plex Mono",monospace;font-size:13px;
     font-weight:600;padding:1px 6px;border:1px solid var(--rule)}
   .heat.hi{color:var(--pass);border-color:var(--pass)}
@@ -486,6 +491,9 @@ async function enrich(mints){
       }
       conc.set(m, {
         top10,
+        top1: th.filter(h => (h.pct||0) < 40)[0]?.pct ?? null,
+        top100: th.filter(h => (h.pct||0) < 40).slice(0,100).reduce((s,h) => s + (h.pct||0), 0),
+        bars: th.slice(0, 60).map(h => h.pct || 0),
         holders: rug?.totalHolders ?? null,
         lpLocked,
         mintAuth: !!rug?.mintAuthority,
@@ -495,6 +503,20 @@ async function enrich(mints){
     await sleep(500);
   }
   renderRows();
+}
+
+/* holder distribution as a tiny bar curve — pool grey, whales red */
+function distSVG(bars, w=80, h=22){
+  if (!bars || !bars.length)
+    return `<svg class="spark flat" viewBox="0 0 ${w} ${h}"><path d="M0,${h-1} L${w},${h-1}"/></svg>`;
+  const max = Math.max(...bars, 1);
+  const bw = w / bars.length;
+  return `<svg class="dist" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">` +
+    bars.map((p,i) => {
+      const bh = Math.max(0.8, (p/max) * (h-2));
+      const cls = p > 40 ? "pool" : p > 5 ? "big" : "";
+      return `<rect class="${cls}" x="${(i*bw).toFixed(2)}" y="${(h-bh).toFixed(2)}" width="${Math.max(0.5,bw-0.35).toFixed(2)}" height="${bh.toFixed(2)}"/>`;
+    }).join("") + `</svg>`;
 }
 
 let running = false, cycle = 0;
@@ -621,7 +643,7 @@ function renderRows(){
         </span>
       </td>
       <td class="n"><span class="heat ${heatCls}">${r.heat}</span></td>
-      <td class="n ${concCls}">${concCell}</td>
+      <td class="n ${concCls}">${concCell}${hasConc && c.bars ? distSVG(c.bars) : ""}</td>
       <td class="n up">+${r.m5.toFixed(0)}%</td>
       <td class="n hide-s ${r.h1>=0?"up":"down"}">${r.h1>0?"+":""}${r.h1.toFixed(0)}%</td>
       <td class="n hide-s">${sparkSVG(r.prices)}</td>
@@ -692,14 +714,17 @@ function openDrawer(mint){
     ["Max buy", r.liq ? fmtUsd(r.liq * 0.01) : "—"],
     ["Top 10 hold", (() => { const c = conc.get(mint);
       return (c && c !== "pending" && c !== "fail") ? c.top10.toFixed(1) + "%" : "—"; })()],
+    ["Top 1 hold", (() => { const c = conc.get(mint);
+      return (c && c !== "pending" && c !== "fail" && c.top1 != null) ? c.top1.toFixed(2) + "%" : "—"; })()],
+    ["Top 100 hold", (() => { const c = conc.get(mint);
+      return (c && c !== "pending" && c !== "fail" && c.top100 != null) ? c.top100.toFixed(1) + "%" : "—"; })()],
     ["LP locked", (() => { const c = conc.get(mint);
       return (c && c !== "pending" && c !== "fail" && c.lpLocked != null) ? c.lpLocked.toFixed(0) + "%" : "—"; })()],
     ["Holders", (() => { const c = conc.get(mint);
       return (c && c !== "pending" && c !== "fail" && c.holders != null) ? c.holders.toLocaleString() : "—"; })()]
   ].map(([k,v]) => `<div><div class="k">${k}</div><div class="v">${v}</div></div>`).join("");
 
-  $("d-links").innerHTML = [
-    ["Full checks", "./?a=" + mint, false],
+  $("d-links").innerHTML = [    ["Full checks", "./?a=" + mint, false],
     ["RugCheck", "https://rugcheck.xyz/tokens/" + mint, true],
     ["Whale watch", "./whales.html?a=" + mint, false],
     ["FOMO", "https://fomo.family/tokens/solana/" + mint, true],
