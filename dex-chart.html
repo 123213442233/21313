@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DEX chart with OHLC levels</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+  :root {
+    --bg: #131722;
+    --panel: #1b2030;
+    --line: #2a2e39;
+    --text: #d1d4dc;
+    --muted: #8a8f9c;
+    --up: #26a69a;
+    --down: #ef5350;
+    --amber: #ff9800;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.4 "Onest", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-variant-numeric: tabular-nums;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  button, input { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+  .top {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    padding: 10px 14px; border-bottom: 1px solid var(--line);
+  }
+  .search { display: flex; flex: 1 1 420px; gap: 8px; min-width: 0; }
+  .search input {
+    flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 6px; padding: 8px 12px; font-size: 13px;
+  }
+  .search input::placeholder { color: var(--muted); }
+  .btn {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+    padding: 7px 12px; cursor: pointer; white-space: nowrap;
+  }
+  .btn:hover { border-color: #434857; }
+  .btn.primary { background: var(--amber); border-color: var(--amber); color: #1a1205; font-weight: 600; }
+  .btn.primary:hover { filter: brightness(1.08); }
+
+  .token {
+    display: flex; align-items: baseline; gap: 22px; flex-wrap: wrap;
+    padding: 10px 14px 6px;
+  }
+  .token .name { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  .token .name small { font-size: 14px; color: var(--muted); font-weight: 500; }
+  .token .sub { color: var(--muted); font-size: 12px; }
+  .token .sub a { color: var(--muted); }
+  .stat { display: flex; flex-direction: column; }
+  .stat span:first-child { color: var(--muted); font-size: 11px; }
+  .stat span:last-child { font-weight: 600; }
+  .stat sub { font-size: 0.7em; }
+  .pos { color: var(--up); } .neg { color: var(--down); }
+
+  .bar {
+    display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+    padding: 4px 10px 8px; border-bottom: 1px solid var(--line); position: relative;
+  }
+  .tf {
+    background: none; border: 0; padding: 5px 9px; border-radius: 5px; cursor: pointer; color: var(--muted);
+  }
+  .tf:hover { color: var(--text); background: var(--panel); }
+  .tf[aria-pressed="true"] { color: var(--text); background: var(--panel); font-weight: 600; }
+  .sep { width: 1px; height: 18px; background: var(--line); margin: 0 6px; }
+
+  .levels {
+    position: absolute; top: calc(100% + 4px); left: 10px; z-index: 5;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px 14px; box-shadow: 0 12px 32px rgba(0,0,0,.45);
+  }
+  .levels[hidden] { display: none; }
+  .levels { max-width: calc(100vw - 20px); }
+  .fib { width: 340px; }
+  .fib .row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .fib .field { display: block; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .fib select, .fib textarea {
+    display: block; width: 100%; margin-top: 4px; background: var(--bg); border: 1px solid var(--line);
+    border-radius: 5px; padding: 6px 8px; color: var(--text); font-size: 13px;
+  }
+  .fib textarea { resize: vertical; font-size: 12px; line-height: 1.45; }
+  .fib .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .fib .grid3 .field { margin-bottom: 0; }
+  .fib input[type="color"] {
+    display: block; margin-top: 4px; width: 100%; height: 30px; padding: 2px;
+    background: var(--bg); border: 1px solid var(--line); border-radius: 5px;
+  }
+  .fib .actions { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; }
+  .fib .note { margin-top: 10px; }
+  .levels h2 { font-size: 13px; margin: 0 0 8px; }
+  .levels table { border-collapse: collapse; }
+  .levels th { font-weight: 500; color: var(--muted); font-size: 12px; text-align: left; padding: 3px 14px 3px 0; }
+  .levels td { padding: 4px 14px 4px 0; }
+  .levels tr.off td:first-child { color: var(--muted); }
+  .levels .note { color: var(--muted); font-size: 12px; margin: 8px 0 0; max-width: 280px; }
+  .levels input { accent-color: var(--amber); width: 15px; height: 15px; }
+
+  .chart-wrap { flex: 1; position: relative; min-height: 0; }
+  #chart { position: absolute; inset: 0; }
+  .empty {
+    position: absolute; inset: 0; display: grid; place-content: center; text-align: center;
+    padding: 24px; color: var(--muted); pointer-events: none;
+  }
+  .empty strong { display: block; color: var(--text); font-size: 16px; margin-bottom: 6px; }
+  .empty p { max-width: 460px; margin: 0 auto; }
+
+  .status {
+    display: flex; gap: 10px; align-items: center; padding: 6px 14px;
+    border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); min-height: 30px;
+  }
+  .status.error { color: #ff8a80; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.live { background: var(--up); }
+
+  @media (max-width: 640px) {
+    .token { gap: 14px; }
+    .token .name { font-size: 17px; width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <form class="search" id="searchForm" autocomplete="off">
+    <input id="addr" type="text" spellcheck="false" aria-label="Token or pair address"
+           placeholder="Paste a token or pair contract address">
+    <button class="btn primary" type="submit">Load chart</button>
+  </form>
+</div>
+
+<div class="token" id="token" hidden></div>
+
+<div class="bar">
+  <div id="tfs" role="group" aria-label="Timeframe"></div>
+  <span class="sep"></span>
+  <button class="btn" id="levelsBtn" aria-expanded="false" aria-controls="levelsPanel">OHLC levels</button>
+  <div class="levels" id="levelsPanel" hidden>
+    <h2>Previous period high, low, close and opens</h2>
+    <table>
+      <thead><tr><th></th><th>Lines</th><th>Labels</th></tr></thead>
+      <tbody id="levelRows"></tbody>
+    </table>
+    <p class="note" id="levelsNote"></p>
+  </div>
+  <button class="btn" id="fibBtn" aria-expanded="false" aria-controls="fibPanel">Fib projections</button>
+  <div class="levels fib" id="fibPanel" hidden>
+    <h2>Macro multi-timeframe Fibonacci projections</h2>
+    <label class="row"><input type="checkbox" id="fibOn"> Show on chart</label>
+    <label class="field">Anchor timeframe <select id="fibTf"></select></label>
+    <label class="field">Fibonacci levels, comma-separated <textarea id="fibLevels" rows="5" spellcheck="false"></textarea></label>
+    <div class="grid3">
+      <label class="field">Fib lines <input type="color" id="fibLineCol"></label>
+      <label class="field">High/low <input type="color" id="fibHlCol"></label>
+      <label class="field">Width <select id="fibWidth"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+    </div>
+    <div class="actions"><button class="btn" type="button" id="fibReset">Reset to defaults</button></div>
+    <p class="note" id="fibNote"></p>
+  </div>
+</div>
+
+<div class="chart-wrap">
+  <div id="chart"></div>
+  <div class="empty" id="empty">
+    <div>
+      <strong>Paste a contract address to load a chart</strong>
+      <p>Works with any pool DEX Screener lists. The pool with the most liquidity is used, and candles come from GeckoTerminal.</p>
+    </div>
+  </div>
+</div>
+
+<div class="status" id="status"><span class="dot" id="dot"></span><span id="statusText">Ready</span></div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- settings ----------
+  const TIMEFRAMES = [
+    { id: "1m", tf: "minute", agg: 1, sec: 60 },
+    { id: "5m", tf: "minute", agg: 5, sec: 300 },
+    { id: "15m", tf: "minute", agg: 15, sec: 900 },
+    { id: "1h", tf: "hour", agg: 1, sec: 3600 },
+    { id: "4h", tf: "hour", agg: 4, sec: 14400 },
+    { id: "1D", tf: "day", agg: 1, sec: 86400 },
+  ];
+
+  // DEX Screener chain id -> GeckoTerminal network id
+  const GT_NETWORK = {
+    ethereum: "eth", bsc: "bsc", polygon: "polygon_pos", avalanche: "avax", fantom: "ftm",
+    sui: "sui-network", solana: "solana", base: "base", arbitrum: "arbitrum", optimism: "optimism",
+  };
+
+  const WHITE = "#ffffff", ORANGE = "#FF9800";
+  const WEEK_OFFSET = 4 * 86400; // 1970-01-05 was a Monday
+
+  // Mirrors the Pine script: which series each period draws, their style and label prefixes.
+  const PERIODS = [
+    { id: "h", name: "Hourly", sec: 3600, key: t => Math.floor(t / 3600) * 3600,
+      series: [
+        { f: "high", style: "line", color: WHITE, gap: true, label: "hHI" },
+        { f: "low", style: "line", color: WHITE, gap: true, label: "hLO" },
+        { f: "close", style: "circles", color: WHITE, width: 1, label: "hCL" },
+      ] },
+    { id: "d", name: "Daily", sec: 86400, key: t => Math.floor(t / 86400) * 86400,
+      series: [
+        { f: "high", style: "line", color: WHITE, gap: true, label: "yHI" },
+        { f: "low", style: "line", color: WHITE, gap: true, label: "yLO" },
+        { f: "close", style: "circles", color: WHITE, width: 2, label: "yCL" },
+        { f: "open", style: "circles", color: ORANGE, width: 2, label: "dOP" },
+      ] },
+    { id: "w", name: "Weekly", sec: 604800,
+      key: t => Math.floor((t - WEEK_OFFSET) / 604800) * 604800 + WEEK_OFFSET,
+      series: [
+        { f: "high", style: "line", color: WHITE, gap: true, label: "wHI" },
+        { f: "low", style: "line", color: WHITE, gap: true, label: "wLO" },
+        { f: "close", style: "circles", color: WHITE, width: 2, label: "wCL" },
+        { f: "open", style: "circles", color: ORANGE, width: 2, label: "wOP" },
+      ] },
+    { id: "m", name: "Monthly", sec: 2419200,
+      key: t => { const d = new Date(t * 1000); return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 1000; },
+      series: [
+        { f: "high", style: "line", color: WHITE, gap: true, label: "mHI" },
+        { f: "low", style: "line", color: WHITE, gap: true, label: "mLO" },
+        { f: "close", style: "line", color: WHITE, gap: true, label: "mclose" },
+        { f: "open", style: "line", color: WHITE, gap: true, label: "mOP" },
+      ] },
+  ];
+
+  const DEFAULT_LEVELS = { h: { lines: false, labels: false }, d: { lines: true, labels: true },
+                           w: { lines: false, labels: false }, m: { lines: false, labels: false } };
+
+  // ---------- Fibonacci projection settings (port of the second Pine script) ----------
+  const FIB_DEFAULT_LEVELS = "0,0.12,0.214,0.236,0.382,0.5,0.618,0.65,0.66,0.707,0.764,0.786,0.886,1.0,1.12,1.214,1.236,1.272,1.382,1.414,1.5,1.618,1.764,1.786,1.886,2.0,2.12,2.214,2.236,2.272,2.382,2.5,2.618,2.764,2.786,2.886,3.272,3.618,4.236,-0.12,-0.214,-0.236,-0.382,-0.5,-0.618,-0.65,-0.66,-0.707,-0.764,-0.786,-0.886,-1.0,-1.12,-1.214,-1.236,-1.272,-1.382,-1.414,-1.5,-1.618,-1.764,-1.786,-1.886,-2.0,-2.214,-2.272,-2.618,-2.764,-3.272,-3.618,-4.236";
+  const FIB_DEFAULTS = { on: true, anchor: "1 Day", levels: FIB_DEFAULT_LEVELS, lineCol: "#787878", hlCol: "#ffffff", width: 1 };
+
+  const dayKey = t => Math.floor(t / 86400) * 86400;
+  const weekKey = t => Math.floor((t - WEEK_OFFSET) / 604800) * 604800 + WEEK_OFFSET;
+  const monthsKey = n => t => { const d = new Date(t * 1000); return Date.UTC(d.getUTCFullYear(), Math.floor(d.getUTCMonth() / n) * n, 1) / 1000; };
+
+  // src: which GeckoTerminal candles the anchor is built from (like request.security's timeframe)
+  // years: highest/lowest of the previous N yearly bars, like ta.highest(high, N)[1] on "12M"
+  const ANCHORS = [
+    { id: "1 Hour",   src: "hour", key: t => Math.floor(t / 3600) * 3600 },
+    { id: "4 Hours",  src: "hour", key: t => Math.floor(t / 14400) * 14400 },
+    { id: "1 Day",    src: "day",  key: dayKey },
+    { id: "1 Week",   src: "day",  key: weekKey },
+    { id: "1 Month",  src: "day",  key: monthsKey(1) },
+    { id: "3 Months", src: "day",  key: monthsKey(3) },
+    { id: "6 Months", src: "day",  key: monthsKey(6) },
+    { id: "1 Year",   src: "day",  key: monthsKey(12) },
+    { id: "4 Years",  src: "day",  key: monthsKey(12), years: 4 },
+    { id: "5 Years",  src: "day",  key: monthsKey(12), years: 5 },
+    { id: "10 Years", src: "day",  key: monthsKey(12), years: 10 },
+  ];
+
+  function loadPrefs() {
+    try { return JSON.parse(localStorage.getItem("dexchart.prefs")) || {}; } catch { return {}; }
+  }
+  function savePrefs() {
+    try { localStorage.setItem("dexchart.prefs", JSON.stringify({ tf: state.tf.id, levels: state.levels, fib: state.fib })); } catch {}
+  }
+  const prefs = loadPrefs();
+
+  const state = {
+    tf: TIMEFRAMES.find(t => t.id === prefs.tf) || TIMEFRAMES[1],
+    levels: Object.assign(structuredClone(DEFAULT_LEVELS), prefs.levels || {}),
+    pair: null, network: null, bars: [], historyComplete: true,
+    loadId: 0, pollTimer: null, infoTimer: null,
+    fib: Object.assign(structuredClone(FIB_DEFAULTS), prefs.fib || {}),
+    pairId: 0, anchor: null, anchorPending: null, anchorError: null, fibKey: null,
+  };
+
+  // ---------- dom ----------
+  const $ = id => document.getElementById(id);
+  const statusEl = $("status"), statusText = $("statusText"), dot = $("dot");
+
+  function setStatus(text, kind) {
+    statusText.textContent = text;
+    statusEl.classList.toggle("error", kind === "error");
+    dot.classList.toggle("live", kind === "live");
+  }
+
+  // ---------- chart ----------
+  const locale = (() => {
+    try { new Intl.DateTimeFormat(navigator.language); return navigator.language; } catch { return "en-US"; }
+  })();
+  const chart = LightweightCharts.createChart($("chart"), {
+    autoSize: true,
+    localization: { locale },
+    layout: { background: { color: "#131722" }, textColor: "#b2b5be",
+              fontFamily: "Onest, system-ui, sans-serif", fontSize: 11 },
+    grid: { vertLines: { color: "#1e2230" }, horzLines: { color: "#1e2230" } },
+    rightPriceScale: { borderColor: "#2a2e39" },
+    timeScale: { borderColor: "#2a2e39", timeVisible: true, secondsVisible: false, rightOffset: 6 },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+  });
+
+  const candles = chart.addCandlestickSeries({
+    upColor: "#26a69a", downColor: "#ef5350", borderVisible: false,
+    wickUpColor: "#26a69a", wickDownColor: "#ef5350",
+  });
+  const volume = chart.addHistogramSeries({
+    priceScaleId: "vol", priceFormat: { type: "volume" }, lastValueVisible: false, priceLineVisible: false,
+  });
+  chart.priceScale("vol").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+
+  // one line series per level plot, created up front
+  const levelSeries = {};
+  for (const p of PERIODS) {
+    levelSeries[p.id] = p.series.map(s => chart.addLineSeries({
+      color: s.color,
+      lineWidth: s.style === "line" ? 1 : (s.width || 1),
+      lineVisible: s.style === "line",
+      pointMarkersVisible: s.style === "circles",
+      pointMarkersRadius: s.style === "circles" ? (s.width === 2 ? 2.2 : 1.5) : undefined,
+      lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+      title: "",
+    }));
+  }
+  let labelLines = [];
+
+  // ---------- formatting ----------
+  function precisionFor(price) {
+    if (!price || !isFinite(price)) return 4;
+    const p = Math.ceil(-Math.log10(Math.abs(price))) + 3;
+    return Math.min(12, Math.max(2, p));
+  }
+  function fmtUsd(n) {
+    if (n == null || !isFinite(n)) return "–";
+    const a = Math.abs(n);
+    if (a >= 1e9) return "$" + (n / 1e9).toFixed(2) + "B";
+    if (a >= 1e6) return "$" + (n / 1e6).toFixed(2) + "M";
+    if (a >= 1e3) return "$" + (n / 1e3).toFixed(1) + "K";
+    return "$" + n.toFixed(2);
+  }
+  // DEX-style small price: 0.0₄9815 -> "0.0<sub>4</sub>9815"
+  function priceHtml(p) {
+    if (p == null || !isFinite(p)) return "–";
+    if (p >= 1) return "$" + p.toLocaleString("en-US", { maximumFractionDigits: 4 });
+    if (p >= 0.001) return "$" + p.toFixed(6).replace(/0+$/, "");
+    const s = p.toFixed(20).split(".")[1];
+    const zeros = s.match(/^0*/)[0].length;
+    const digits = s.slice(zeros, zeros + 4).replace(/0+$/, "");
+    return "$0.0<sub>" + zeros + "</sub>" + digits;
+  }
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+  // ---------- data sources ----------
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  async function getJson(url, what) {
+    let res;
+    try { res = await fetch(url); }
+    catch {
+      throw new Error(`Couldn't reach ${what}. Check your connection. If this page is open inside a preview, download it and open it directly in your browser.`);
+    }
+    if (res.status === 429) throw Object.assign(new Error(`${what} is rate limiting requests. Wait a minute and try again.`), { rate: true });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`${what} returned an error (${res.status}).`);
+    return res.json();
+  }
+
+  async function findPair(addr) {
+    const a = addr.toLowerCase();
+    let j = await getJson(`https://api.dexscreener.com/latest/dex/tokens/${encodeURIComponent(addr)}`, "DEX Screener");
+    let pairs = (j && j.pairs) || [];
+    if (!pairs.length) {
+      j = await getJson(`https://api.dexscreener.com/latest/dex/search?q=${encodeURIComponent(addr)}`, "DEX Screener");
+      pairs = (j && j.pairs) || [];
+    }
+    if (!pairs.length) return null;
+    const byPair = pairs.find(p => (p.pairAddress || "").toLowerCase() === a);
+    if (byPair) return byPair;
+    const asBase = pairs.filter(p => (p.baseToken?.address || "").toLowerCase() === a);
+    const pool = (asBase.length ? asBase : pairs).slice()
+      .sort((x, y) => (y.liquidity?.usd || 0) - (x.liquidity?.usd || 0));
+    return pool[0];
+  }
+
+  function ohlcvUrl(before, limit, tf = state.tf) {
+    const p = state.pair;
+    let u = `https://api.geckoterminal.com/api/v2/networks/${state.network}/pools/${p.pairAddress}/ohlcv/${tf.tf}` +
+            `?aggregate=${tf.agg}&limit=${limit}&currency=usd&token=${encodeURIComponent(p.baseToken.address)}`;
+    if (before) u += `&before_timestamp=${before}`;
+    return u;
+  }
+  function parseOhlcv(j) {
+    const list = j?.data?.attributes?.ohlcv_list || [];
+    return list.map(([t, o, h, l, c, v]) => ({ time: t, open: +o, high: +h, low: +l, close: +c, volume: +v }));
+  }
+  function mergeBars(base, extra) {
+    const m = new Map(base.map(b => [b.time, b]));
+    for (const b of extra) m.set(b.time, b);
+    return [...m.values()].sort((a, b) => a.time - b.time);
+  }
+
+  const PAGE = 1000, MAX_PAGES = 3;
+  async function fetchHistory(loadId) {
+    let bars = [], before = null, complete = false;
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const j = await getJson(ohlcvUrl(before, PAGE), "GeckoTerminal");
+      if (loadId !== state.loadId) return null;
+      const got = parseOhlcv(j);
+      bars = mergeBars(bars, got);
+      if (got.length < PAGE) { complete = true; break; }
+      before = Math.min(...got.map(b => b.time));
+      await sleep(350);
+    }
+    return { bars, complete };
+  }
+
+  // ---------- OHLC levels (port of the Pine script) ----------
+  // For every bar: previous completed period's high/low/close, and the current period's open.
+  // Equivalent to security(tf, high[1], lookahead_on) / security(tf, open, lookahead_on).
+  function computeLevels(bars, P, complete) {
+    const periods = [];
+    let cur = null;
+    for (const b of bars) {
+      const k = P.key(b.time);
+      if (!cur || cur.k !== k) { cur = { k, open: b.open, high: b.high, low: b.low, close: b.close }; periods.push(cur); }
+      else { cur.high = Math.max(cur.high, b.high); cur.low = Math.min(cur.low, b.low); cur.close = b.close; }
+    }
+    const out = {};
+    for (const s of P.series) out[s.f] = [];
+    let pi = -1;
+    for (let i = 0; i < bars.length; i++) {
+      const t = bars[i].time, k = P.key(t);
+      while (pi + 1 < periods.length && periods[pi + 1].k <= k) pi++;
+      const period = periods[pi];
+      // if history was cut off, the first loaded period is partial: don't trust it
+      const prev = pi > 0 && (complete || pi > 1) ? periods[pi - 1] : null;
+      const openOk = complete || pi > 0;
+      // Pine hides the line where the value changes; in Lightweight Charts a point's
+      // colour paints the segment that starts at it, so the last bar of a period goes transparent.
+      const endsPeriod = i < bars.length - 1 && P.key(bars[i + 1].time) !== k;
+      for (const s of P.series) {
+        const v = s.f === "open" ? (openOk ? period.open : null) : (prev ? prev[s.f] : null);
+        if (v == null) { out[s.f].push({ time: t }); continue; }
+        const pt = { time: t, value: v };
+        if (s.gap && endsPeriod) pt.color = "rgba(0,0,0,0)";
+        out[s.f].push(pt);
+      }
+    }
+    return out;
+  }
+
+  function periodAvailable(P) { return P.sec >= state.tf.sec; }
+
+  function renderLevels() {
+    const bars = state.bars;
+    for (const l of labelLines) l.series.removePriceLine(l.line);
+    labelLines = [];
+    const prec = precisionFor(bars.length ? bars[bars.length - 1].close : 0);
+    const fmt = { type: "price", precision: prec, minMove: Math.pow(10, -prec) };
+
+    for (const P of PERIODS) {
+      const cfg = state.levels[P.id];
+      const avail = periodAvailable(P) && bars.length > 0;
+      const showLines = avail && cfg.lines, showLabels = avail && cfg.labels;
+      const data = (showLines || showLabels) ? computeLevels(bars, P, state.historyComplete) : null;
+      P.series.forEach((s, idx) => {
+        const ser = levelSeries[P.id][idx];
+        ser.applyOptions({ priceFormat: fmt, visible: showLines || showLabels });
+        ser.setData(showLines ? data[s.f] : []);
+        if (showLabels) {
+          const last = data[s.f][data[s.f].length - 1];
+          if (last && last.value != null) {
+            // labels sit on the candle series so they still show when lines are off
+            const line = candles.createPriceLine({
+              price: last.value, color: s.color === ORANGE ? ORANGE : "#9598a1",
+              lineVisible: false, axisLabelVisible: true, title: s.label,
+              axisLabelColor: s.color === ORANGE ? ORANGE : "#e0e3eb", axisLabelTextColor: "#131722",
+            });
+            labelLines.push({ series: candles, line });
+          }
+        }
+      });
+    }
+    renderLevelPanel();
+  }
+
+  // ---------- Fibonacci projections ----------
+  let fibLines = [];
+  const anchorDef = () => ANCHORS.find(a => a.id === state.fib.anchor) || ANCHORS[2];
+
+  function clearFib() {
+    for (const l of fibLines) candles.removePriceLine(l);
+    fibLines = [];
+  }
+
+  // Loads the higher-timeframe candles the anchor is built from, cached per pool.
+  function ensureAnchor(force) {
+    if (!state.fib.on || !state.pair) return;
+    const A = anchorDef();
+    const pages = A.years ? Math.ceil(A.years * 366 / 1000) + 1 : 1;
+    const c = state.anchor;
+    const fresh = c && c.pairId === state.pairId && c.src === A.src && c.pages >= pages &&
+                  Date.now() - c.at < 5 * 60 * 1000;
+    if (fresh && !force) return;
+    if (state.anchorPending) return;
+    const pairId = state.pairId;
+    state.anchorError = null;
+    renderFibNote("Loading anchor candles…");
+    state.anchorPending = (async () => {
+      try {
+        const tf = { tf: A.src, agg: 1 };
+        let bars = [], before = null;
+        for (let i = 0; i < pages; i++) {
+          const got = parseOhlcv(await getJson(ohlcvUrl(before, 1000, tf), "GeckoTerminal"));
+          if (pairId !== state.pairId) return;
+          bars = mergeBars(bars, got);
+          if (got.length < 1000) break;
+          before = Math.min(...got.map(b => b.time));
+          await sleep(350);
+        }
+        state.anchor = { pairId, src: A.src, pages, bars, at: Date.now() };
+      } catch (e) {
+        if (pairId === state.pairId) state.anchorError = e.message;
+      } finally {
+        state.anchorPending = null;
+        if (pairId === state.pairId) {
+          renderFib();
+          // settings may have changed while loading
+          if (!state.anchorError) ensureAnchor();
+        }
+      }
+    })();
+  }
+
+  // Previous completed anchor period's high and low (request.security(..., high[1], lookahead_on)).
+  function computeAnchor(A, bars, nowT) {
+    const groups = [];
+    let cur = null;
+    for (const b of bars) {
+      const k = A.key(b.time);
+      if (!cur || cur.k !== k) { cur = { k, high: b.high, low: b.low }; groups.push(cur); }
+      else { cur.high = Math.max(cur.high, b.high); cur.low = Math.min(cur.low, b.low); }
+    }
+    const curKey = A.key(nowT);
+    const prior = groups.filter(g => g.k < curKey);
+    const n = A.years || 1;
+    const firstTime = bars.length ? bars[0].time : null;
+    if (prior.length < n) return { curKey, missing: true, have: prior.length, need: n, firstTime };
+    const sel = prior.slice(-n);
+    return { curKey, high: Math.max(...sel.map(g => g.high)), low: Math.min(...sel.map(g => g.low)), firstTime };
+  }
+
+  function parseFibLevels(str) {
+    return String(str).split(",").map(x => x.trim()).filter(x => x !== "").map(Number).filter(isFinite);
+  }
+
+  function renderFibNote(text) { $("fibNote").textContent = text; }
+
+  function renderFib() {
+    clearFib();
+    const F = state.fib, A = anchorDef();
+    if (!F.on) { renderFibNote(""); return; }
+    if (!state.pair) { renderFibNote("Load a chart to see projections."); return; }
+    if (state.anchorError) { renderFibNote(state.anchorError); return; }
+    const c = state.anchor;
+    if (!c || c.pairId !== state.pairId || c.src !== A.src) { ensureAnchor(); return; }
+    ensureAnchor(); // refreshes every 5 minutes; no-op while fresh
+    if (!c.bars.length) { renderFibNote("GeckoTerminal has no candles for this pool yet."); return; }
+
+    const lastChart = state.bars.length ? state.bars[state.bars.length - 1].time : 0;
+    const nowT = Math.max(lastChart, c.bars[c.bars.length - 1].time);
+    const r = computeAnchor(A, c.bars, nowT);
+
+    // a new anchor period started since the data was fetched: refresh it
+    if (state.fibKey !== null && state.fibKey !== r.curKey) ensureAnchor(true);
+    state.fibKey = r.curKey;
+
+    if (r.missing) {
+      const since = r.firstTime ? new Date(r.firstTime * 1000).toISOString().slice(0, 10) : "";
+      renderFibNote(A.years
+        ? `Needs ${r.need} completed years of history; this pool has ${r.have}. Data starts ${since}.`
+        : `No completed ${A.id.toLowerCase()} period yet. This pool's data starts ${since}; pick a shorter anchor.`);
+      return;
+    }
+
+    const range = r.high - r.low;
+    const width = Math.min(4, Math.max(1, +F.width || 1));
+    for (const lvl of parseFibLevels(F.levels)) {
+      fibLines.push(candles.createPriceLine({
+        price: r.low + lvl * range, color: F.lineCol, lineWidth: width,
+        lineStyle: LightweightCharts.LineStyle.Solid, axisLabelVisible: false, title: "",
+      }));
+    }
+    const hlWidth = Math.min(4, width + 1);
+    fibLines.push(candles.createPriceLine({
+      price: r.high, color: F.hlCol, lineWidth: hlWidth, lineStyle: LightweightCharts.LineStyle.Dotted,
+      axisLabelVisible: true, title: `Prev ${A.id} High`, axisLabelColor: "#f23645", axisLabelTextColor: "#ffffff",
+    }));
+    fibLines.push(candles.createPriceLine({
+      price: r.low, color: F.hlCol, lineWidth: hlWidth, lineStyle: LightweightCharts.LineStyle.Dotted,
+      axisLabelVisible: true, title: `Prev ${A.id} Low`, axisLabelColor: "#089981", axisLabelTextColor: "#ffffff",
+    }));
+    const prec = precisionFor(r.high);
+    renderFibNote(`Previous ${A.id.toLowerCase()}: high ${r.high.toFixed(prec)}, low ${r.low.toFixed(prec)}. Periods use UTC.`);
+  }
+
+  // ---------- chart data ----------
+  function setChartData(fit) {
+    const bars = state.bars;
+    const prec = precisionFor(bars.length ? bars[bars.length - 1].close : 0);
+    candles.applyOptions({ priceFormat: { type: "price", precision: prec, minMove: Math.pow(10, -prec) } });
+    candles.setData(bars.map(({ time, open, high, low, close }) => ({ time, open, high, low, close })));
+    volume.setData(bars.map(b => ({ time: b.time, value: b.volume,
+      color: b.close >= b.open ? "rgba(38,166,154,0.45)" : "rgba(239,83,80,0.45)" })));
+    renderLevels();
+    renderFib();
+    if (fit) {
+      const n = bars.length;
+      if (n > 300) chart.timeScale().setVisibleLogicalRange({ from: n - 300, to: n + 6 });
+      else chart.timeScale().fitContent();
+    }
+  }
+
+  function renderToken() {
+    const p = state.pair;
+    const el = $("token");
+    if (!p) { el.hidden = true; return; }
+    const last = state.bars.length ? state.bars[state.bars.length - 1].close : +p.priceUsd;
+    const ch = p.priceChange?.h24;
+    el.innerHTML = `
+      <div>
+        <div class="name">${esc(p.baseToken.symbol)} <small>/ ${esc(p.quoteToken.symbol)}</small></div>
+        <div class="sub">${esc(p.baseToken.name)} on ${esc(p.dexId)}, ${esc(p.chainId)} ·
+          <a href="${esc(p.url)}" target="_blank" rel="noopener">DEX Screener</a></div>
+      </div>
+      <div class="stat"><span>Price</span><span>${priceHtml(last)}</span></div>
+      <div class="stat"><span>24h change</span><span class="${ch >= 0 ? "pos" : "neg"}">${ch == null ? "–" : (ch > 0 ? "+" : "") + ch.toFixed(2) + "%"}</span></div>
+      <div class="stat"><span>24h volume</span><span>${fmtUsd(p.volume?.h24)}</span></div>
+      <div class="stat"><span>Liquidity</span><span>${fmtUsd(p.liquidity?.usd)}</span></div>
+      <div class="stat"><span>Market cap</span><span>${fmtUsd(p.marketCap ?? p.fdv)}</span></div>`;
+    el.hidden = false;
+    document.title = `${p.baseToken.symbol}/${p.quoteToken.symbol} · DEX chart`;
+  }
+
+  // ---------- loading ----------
+  function stopTimers() { clearTimeout(state.pollTimer); clearInterval(state.infoTimer); }
+
+  async function loadAddress(addr) {
+    addr = addr.trim();
+    if (!addr) return;
+    const loadId = ++state.loadId;
+    state.pairId++;
+    state.anchor = null; state.anchorError = null; state.fibKey = null;
+    clearFib();
+    stopTimers();
+    setStatus("Finding the pool on DEX Screener…");
+    try {
+      const pair = await findPair(addr);
+      if (loadId !== state.loadId) return;
+      if (!pair) {
+        setStatus("DEX Screener has no pools for this address. Check the address and chain.", "error");
+        return;
+      }
+      state.pair = pair;
+      state.network = GT_NETWORK[pair.chainId] || pair.chainId;
+      try { history.replaceState(null, "", "#" + addr); } catch {}
+      renderToken();
+      ensureAnchor();
+      await loadCandles(loadId);
+      state.infoTimer = setInterval(refreshInfo, 30000);
+    } catch (e) {
+      if (loadId === state.loadId) setStatus(e.message, "error");
+    }
+  }
+
+  async function loadCandles(loadId) {
+    setStatus(`Loading ${state.tf.id} candles from GeckoTerminal…`);
+    clearTimeout(state.pollTimer);
+    const res = await fetchHistory(loadId);
+    if (!res) return;
+    state.bars = res.bars;
+    state.historyComplete = res.complete;
+    $("empty").hidden = res.bars.length > 0;
+    if (!res.bars.length) {
+      $("empty").innerHTML = `<div><strong>No candles for this pool yet</strong>
+        <p>GeckoTerminal has no ${esc(state.tf.id)} data for ${esc(state.pair.baseToken.symbol)} on ${esc(state.pair.dexId)}.
+        Tokens still on a launchpad bonding curve often have none until they move to a regular pool. Try another timeframe or check back later.</p></div>`;
+      setChartData(true);
+      setStatus("No candle data", "error");
+      return;
+    }
+    setChartData(true);
+    renderToken();
+    setStatus(liveText(), "live");
+    schedulePoll(loadId);
+  }
+
+  function liveText() {
+    return `Live · ${state.bars.length} candles · updated ${new Date().toLocaleTimeString()}`;
+  }
+
+  function schedulePoll(loadId, delay = 15000) {
+    clearTimeout(state.pollTimer);
+    state.pollTimer = setTimeout(() => poll(loadId), delay);
+  }
+
+  async function poll(loadId) {
+    if (loadId !== state.loadId) return;
+    try {
+      const j = await getJson(ohlcvUrl(null, 5), "GeckoTerminal");
+      if (loadId !== state.loadId) return;
+      const fresh = parseOhlcv(j).sort((a, b) => a.time - b.time);
+      const lastTime = state.bars.length ? state.bars[state.bars.length - 1].time : 0;
+      state.bars = mergeBars(state.bars, fresh);
+      for (const b of fresh) {
+        if (b.time < lastTime) continue;
+        candles.update({ time: b.time, open: b.open, high: b.high, low: b.low, close: b.close });
+        volume.update({ time: b.time, value: b.volume,
+          color: b.close >= b.open ? "rgba(38,166,154,0.45)" : "rgba(239,83,80,0.45)" });
+      }
+      renderLevels();
+      renderFib();
+      renderToken();
+      setStatus(liveText(), "live");
+      schedulePoll(loadId);
+    } catch (e) {
+      setStatus(e.rate ? "Rate limited by GeckoTerminal, retrying in 60s" : e.message, "error");
+      schedulePoll(loadId, e.rate ? 60000 : 30000);
+    }
+  }
+
+  async function refreshInfo() {
+    const p = state.pair;
+    if (!p) return;
+    try {
+      const j = await getJson(`https://api.dexscreener.com/latest/dex/pairs/${p.chainId}/${p.pairAddress}`, "DEX Screener");
+      const np = j?.pairs?.[0] || j?.pair;
+      if (np && np.pairAddress === state.pair.pairAddress) { state.pair = np; renderToken(); }
+    } catch {}
+  }
+
+  // ---------- controls ----------
+  const tfBox = $("tfs");
+  for (const t of TIMEFRAMES) {
+    const b = document.createElement("button");
+    b.className = "tf"; b.type = "button"; b.textContent = t.id;
+    b.setAttribute("aria-pressed", String(t === state.tf));
+    b.addEventListener("click", () => {
+      if (state.tf === t) return;
+      state.tf = t; savePrefs();
+      for (const x of tfBox.children) x.setAttribute("aria-pressed", String(x === b));
+      if (state.pair) {
+        const id = ++state.loadId;
+        loadCandles(id).catch(e => { if (id === state.loadId) setStatus(e.message, "error"); });
+      } else renderLevelPanel();
+    });
+    tfBox.appendChild(b);
+  }
+
+  function renderLevelPanel() {
+    const rows = $("levelRows");
+    rows.innerHTML = "";
+    const off = [];
+    for (const P of PERIODS) {
+      const avail = periodAvailable(P);
+      if (!avail) off.push(P.name.toLowerCase());
+      const tr = document.createElement("tr");
+      if (!avail) tr.className = "off";
+      tr.innerHTML = `<td>${P.name}</td>`;
+      for (const kind of ["lines", "labels"]) {
+        const td = document.createElement("td");
+        const cb = document.createElement("input");
+        cb.type = "checkbox"; cb.checked = state.levels[P.id][kind]; cb.disabled = !avail;
+        cb.setAttribute("aria-label", `${P.name} ${kind}`);
+        cb.addEventListener("change", () => {
+          state.levels[P.id][kind] = cb.checked; savePrefs(); renderLevels();
+        });
+        td.appendChild(cb); tr.appendChild(td);
+      }
+      rows.appendChild(tr);
+    }
+    const notes = [];
+    if (off.length) {
+      const names = off.join(" and ");
+      notes.push(`${names[0].toUpperCase() + names.slice(1)} levels need a chart timeframe shorter than ${state.tf.id}.`);
+    }
+    if (!state.historyComplete) notes.push("Older history wasn't loaded, so the earliest period is skipped.");
+    notes.push("Periods use UTC, weeks start Monday, like TradingView crypto charts.");
+    $("levelsNote").textContent = notes.join(" ");
+  }
+
+  const panels = [[$("levelsBtn"), $("levelsPanel")], [$("fibBtn"), $("fibPanel")]];
+  function closePanels(except) {
+    for (const [btn, panel] of panels) if (panel !== except) { panel.hidden = true; btn.setAttribute("aria-expanded", "false"); }
+  }
+  for (const [btn, panel] of panels) {
+    btn.addEventListener("click", () => {
+      const open = panel.hidden;
+      closePanels(panel);
+      panel.hidden = !open;
+      btn.setAttribute("aria-expanded", String(open));
+      if (open) panel.style.left = Math.max(10, Math.min(btn.offsetLeft, window.innerWidth - panel.offsetWidth - 10)) + "px";
+    });
+  }
+  document.addEventListener("click", e => {
+    for (const [btn, panel] of panels) {
+      if (!panel.hidden && !panel.contains(e.target) && !btn.contains(e.target)) {
+        panel.hidden = true; btn.setAttribute("aria-expanded", "false");
+      }
+    }
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape") return;
+    for (const [btn, panel] of panels) if (!panel.hidden) { panel.hidden = true; btn.setAttribute("aria-expanded", "false"); btn.focus(); }
+  });
+
+  // fib controls
+  const fibOn = $("fibOn"), fibTf = $("fibTf"), fibLevels = $("fibLevels"),
+        fibLineCol = $("fibLineCol"), fibHlCol = $("fibHlCol"), fibWidth = $("fibWidth");
+  for (const a of ANCHORS) fibTf.add(new Option(a.id, a.id));
+  function syncFibInputs() {
+    fibOn.checked = state.fib.on; fibTf.value = anchorDef().id; fibLevels.value = state.fib.levels;
+    fibLineCol.value = state.fib.lineCol; fibHlCol.value = state.fib.hlCol; fibWidth.value = String(state.fib.width);
+  }
+  function fibChanged() {
+    state.fib = { on: fibOn.checked, anchor: fibTf.value, levels: fibLevels.value,
+                  lineCol: fibLineCol.value, hlCol: fibHlCol.value, width: +fibWidth.value };
+    savePrefs();
+    state.fibKey = null;
+    ensureAnchor();
+    renderFib();
+  }
+  for (const el of [fibOn, fibTf, fibWidth]) el.addEventListener("change", fibChanged);
+  for (const el of [fibLineCol, fibHlCol, fibLevels]) el.addEventListener("input", fibChanged);
+  $("fibReset").addEventListener("click", () => {
+    state.fib = structuredClone(FIB_DEFAULTS); syncFibInputs(); fibChanged();
+  });
+  syncFibInputs();
+  renderFib();
+
+  $("searchForm").addEventListener("submit", e => {
+    e.preventDefault();
+    loadAddress($("addr").value);
+  });
+
+  renderLevelPanel();
+  const fromHash = decodeURIComponent(location.hash.slice(1));
+  if (fromHash) { $("addr").value = fromHash; loadAddress(fromHash); }
+})();
+</script>
+</body>
+</html>
